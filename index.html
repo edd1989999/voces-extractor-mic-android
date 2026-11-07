@@ -54,11 +54,11 @@ header .status-dot.sim{background:var(--amber);
 /* ============ TABS ============ */
 .tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--line);
   flex-shrink:0}
-.tab{flex:1;padding:11px 8px;text-align:center;font-size:.74rem;
+.tab{flex:1;min-width:0;padding:10px 3px;text-align:center;font-size:.68rem;
   font-weight:600;color:var(--muted);background:transparent;border:none;
   border-bottom:2px solid transparent;cursor:pointer;transition:.15s;
   display:flex;flex-direction:column;align-items:center;gap:3px}
-.tab .icon{font-size:1.1rem}
+.tab .icon{font-size:1.05rem}
 .tab.active{color:var(--cyan);border-bottom-color:var(--cyan);
   background:rgba(60,231,255,.05)}
 
@@ -127,6 +127,27 @@ header .status-dot.sim{background:var(--amber);
   background:rgba(10,16,28,.8);padding:2px 6px;border-radius:4px;
   font-weight:600;pointer-events:none;z-index:2}
 .wave-label span{color:var(--cyan)}
+
+/* ============ ANÁLISIS ACÚSTICO/FONÉTICO ============ */
+.feature-view{display:flex;flex-direction:column;gap:9px;padding-bottom:16px}
+.feature-note,.feature-cue,.correlation-card{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:11px;padding:10px;font-size:.72rem;line-height:1.5;color:var(--muted)}
+.feature-note b{color:var(--amber)}
+.feature-cue{color:var(--cyan);border-color:rgba(60,231,255,.35)}
+.feature-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.feature-stats .stat{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:7px 4px;text-align:center;min-width:0}
+.feature-stats .k{font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;line-height:1.25;min-height:1.4em}
+.feature-stats .v{font-size:.82rem;font-weight:700;color:var(--green);font-family:"SF Mono",Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.feature-card{height:145px;min-width:0;background:#060a12;border:1px solid var(--line);border-radius:11px;overflow:hidden;position:relative}
+.feature-title{font-size:.66rem;font-weight:700;color:var(--cyan);padding:7px 8px 0}
+.feature-title span{font-weight:400;color:var(--muted)}
+.feature-card canvas{display:block;width:100%;height:112px}
+.correlation-card{display:flex;flex-direction:column;gap:6px}
+.correlation-hint{font-size:.64rem;color:var(--muted)}
+.correlation-list{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow:auto}
+.correlation-item{border-left:2px solid var(--cyan);padding:5px 7px;background:rgba(255,255,255,.025);border-radius:0 6px 6px 0;font-size:.7rem;color:var(--txt)}
+.correlation-item .corr-meta{font-size:.6rem;color:var(--muted);margin-top:2px;line-height:1.4}
+@media(max-width:360px){.feature-grid{grid-template-columns:1fr}.feature-card{height:135px}.feature-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* ============ VISTA TEXTO ============ */
 .text-view{display:flex;flex-direction:column;height:100%;gap:8px}
@@ -316,6 +337,9 @@ header .status-dot.sim{background:var(--amber);
     <button class="tab" data-tab="text">
       <span class="icon">📝</span>Texto
     </button>
+    <button class="tab" data-tab="phonetic">
+      <span class="icon">📈</span>Fonética
+    </button>
     <button class="tab" data-tab="settings">
       <span class="icon">⚙️</span>Ajustes
     </button>
@@ -451,6 +475,33 @@ header .status-dot.sim{background:var(--amber);
       </div>
     </div>
 
+    <!-- ========== TAB ANÁLISIS FONÉTICO ========== -->
+    <div class="tab-panel" id="panel-phonetic">
+      <div class="feature-view">
+        <div class="feature-note"><b>Mediciones acústicas y pistas, no identificación automática de fonemas.</b> dBFS es nivel relativo digital (no dB SPL calibrado); F1/F2 son picos espectrales aproximados, no formantes LPC.</div>
+        <div class="feature-stats">
+          <div class="stat"><div class="k">Nivel relativo</div><div class="v" id="featureDb">— dBFS</div></div>
+          <div class="stat"><div class="k">F0 / tono</div><div class="v" id="featureF0Live">— Hz</div></div>
+          <div class="stat"><div class="k">Centroide espectral</div><div class="v" id="featureCentroidLive">— Hz</div></div>
+          <div class="stat"><div class="k">Cruces por cero</div><div class="v" id="featureZcrLive">—</div></div>
+          <div class="stat"><div class="k">Pico banda baja (F1*)</div><div class="v" id="featureF1Live">— Hz</div></div>
+          <div class="stat"><div class="k">Pico banda alta (F2*)</div><div class="v" id="featureF2Live">— Hz</div></div>
+        </div>
+        <div class="feature-cue" id="featureCue">Inicia el micrófono para calcular rasgos acústicos.</div>
+        <div class="feature-grid">
+          <div class="feature-card"><div class="feature-title">F0 · frecuencia fundamental <span>(Hz)</span></div><canvas id="featurePitchCanvas"></canvas></div>
+          <div class="feature-card"><div class="feature-title">Nivel de señal <span>(dBFS relativo)</span></div><canvas id="featureLevelCanvas"></canvas></div>
+          <div class="feature-card"><div class="feature-title">Centroide espectral <span>(Hz)</span></div><canvas id="featureCentroidCanvas"></canvas></div>
+          <div class="feature-card"><div class="feature-title">Cruces por cero <span>(por muestra)</span></div><canvas id="featureZcrCanvas"></canvas></div>
+        </div>
+        <div class="correlation-card">
+          <div class="feature-title">Frases de Chrome ↔ rasgos acústicos cercanos</div>
+          <div class="correlation-hint">Resumen aproximado de hasta 5 s alrededor del resultado; no es alineación fonema-tiempo.</div>
+          <div id="phraseCorrelations" class="correlation-list">Las frases reconocidas aparecerán aquí con sus medidas cercanas.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- ========== TAB AJUSTES ========== -->
     <div class="tab-panel" id="panel-settings">
       <div class="settings-view">
@@ -475,12 +526,7 @@ header .status-dot.sim{background:var(--amber);
         </div>
 
         <div class="warn-card">
-          <b>ℹ️ Cómo funciona:</b> los filtros de banda, la detección de voz y las ondas
-          se aplican a tu propia cadena de audio. El motor de transcripción del navegador
-          (Chrome/Edge) escucha el micrófono por su cuenta; aquí sirve de
-          <b>puerta</b>: solo se aceptan frases cuando se detectó voz humana
-          (energía en la banda vocal + tono F0 dentro del rango). Requiere
-          <b>HTTPS</b> o <code>localhost</code>.
+          <b>ℹ️ Cómo funciona:</b> las gráficas calculan medidas de la señal capturada. Chrome aporta las palabras; el resumen por frase usa rasgos cercanos en el tiempo y no alinea cada fonema. dBFS es relativo y F1/F2 son picos espectrales aproximados. Requiere <b>HTTPS</b> o <code>localhost</code>.
         </div>
 
       </div>
@@ -636,7 +682,7 @@ let A = null;  // cadena de audio activa
 const R = {    // análisis en tiempo real
   pitch:0, pitchSm:0, noPitch:0, rms:0, peak:0, ampSm:0, ratio:0,
   lastVoiceTs:0, voiceActive:false, dropped:0, pitchLog:[],
-  hist:[], phase:0, waveFrame:0, markers:[], markerId:0
+  hist:[], phase:0, waveFrame:0, markers:[], markerId:0, featureLog:[]
 };
 let freqData = new Uint8Array(1024);
 let timeF = new Float32Array(2048);
@@ -646,6 +692,13 @@ const corrBuf = new Float32Array(4096);
 const waveCanvas = $('waveCanvas'),   waveCtx = waveCanvas.getContext('2d');
 const specCanvas = $('specCanvas'),   specCtx = specCanvas.getContext('2d');
 const spectroCanvas = $('spectroCanvas'), spectroCtx = spectroCanvas.getContext('2d');
+const featureCharts = [
+  { canvas:$('featurePitchCanvas'), key:'f0', min:0, max:500, color:'#3ce7ff', unit:'Hz' },
+  { canvas:$('featureLevelCanvas'), key:'dbfs', min:-72, max:0, color:'#3cffb0', unit:'dBFS' },
+  { canvas:$('featureCentroidCanvas'), key:'centroid', min:0, max:5000, color:'#ffc83c', unit:'Hz' },
+  { canvas:$('featureZcrCanvas'), key:'zcr', min:0, max:0.35, color:'#ff8cc8', unit:'cruces/muestra' }
+];
+const featureFreqData = new Uint8Array(1024);
 
 /* ============================================================
    3. UI BÁSICA
@@ -662,7 +715,7 @@ document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', (
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   tab.classList.add('active');
   $('panel-' + tab.dataset.tab).classList.add('active');
-  if (tab.dataset.tab === 'wave') setTimeout(resizeAll, 50);
+  if (tab.dataset.tab === 'wave' || tab.dataset.tab === 'phonetic') setTimeout(() => { resizeAll(); drawFeatureCharts(); }, 50);
 }));
 
 function resizeCanvas(c, ctx) {
@@ -683,7 +736,9 @@ function resizeAll() {
     spectroCtx.fillRect(0,0,spectroCanvas.width,spectroCanvas.height);
     spectroCtx.restore();
   }
+  featureCharts.forEach(item => resizeCanvas(item.canvas, item.canvas.getContext('2d')));
   if (!A) { drawTravel(); drawSpectrum(); }
+  drawFeatureCharts();
 }
 window.addEventListener('resize', resizeAll);
 window.addEventListener('orientationchange', () => setTimeout(resizeAll, 200));
@@ -915,11 +970,95 @@ function classifyVoice(pitch) {
   return { label:'muy agudo', cls:'muy-agudo', color:'#ff5c7a' };
 }
 
+function medianOf(values) {
+  const a = values.filter(Number.isFinite).sort((x,y) => x-y);
+  if (!a.length) return 0;
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m-1] + a[m]) / 2;
+}
+function spectralPeak(lowHz, highHz, binHz) {
+  let best = 0, index = -1;
+  const from = Math.max(1, Math.floor(lowHz/binHz)), to = Math.min(featureFreqData.length-1, Math.ceil(highHz/binHz));
+  for (let i=from; i<=to; i++) if (featureFreqData[i] > best) { best=featureFreqData[i]; index=i; }
+  return best >= 10 && index >= 0 ? index*binHz : 0;
+}
+function recordAcousticFeatures(now) {
+  if (!A) return;
+  const binHz = A.ctx.sampleRate / 2 / featureFreqData.length;
+  let crossings=0, centroidSum=0, magnitudeSum=0;
+  for (let i=1;i<timeF.length;i++) if ((timeF[i-1] < 0 && timeF[i] >= 0) || (timeF[i-1] >= 0 && timeF[i] < 0)) crossings++;
+  for (let i=1;i<featureFreqData.length;i++) {
+    const mag=featureFreqData[i]; if (!mag) continue;
+    centroidSum += i*binHz*mag; magnitudeSum += mag;
+  }
+  const f = {
+    t:now, f0:R.pitchSm || 0,
+    dbfs:Math.max(-96,20*Math.log10(Math.max(R.rms,1e-6))),
+    centroid:magnitudeSum ? centroidSum/magnitudeSum : 0,
+    zcr:crossings/Math.max(1,timeF.length-1),
+    f1:spectralPeak(200,1000,binHz), f2:spectralPeak(700,3000,binHz),
+    voiced:R.pitchSm>0 ? 1 : 0
+  };
+  R.featureLog.push(f);
+  if (R.featureLog.length>1200) R.featureLog.splice(0,R.featureLog.length-1200);
+  $('featureDb').textContent=f.dbfs.toFixed(1)+' dBFS';
+  $('featureF0Live').textContent=f.f0 ? Math.round(f.f0)+' Hz' : '— Hz';
+  $('featureCentroidLive').textContent=Math.round(f.centroid)+' Hz';
+  $('featureZcrLive').textContent=f.zcr.toFixed(3);
+  $('featureF1Live').textContent=f.f1 ? Math.round(f.f1)+' Hz' : '— Hz';
+  $('featureF2Live').textContent=f.f2 ? Math.round(f.f2)+' Hz' : '— Hz';
+  const cue = f.dbfs < -60 ? 'Señal muy baja o silencio.' : f.voiced && f.centroid < 2800 ? 'Pista: predominio sonoro; compatible con vocales/sonorantes, no identifica cuál.' : f.centroid > 2800 && f.zcr > 0.08 ? 'Pista: energía aguda y muchos cruces; compatible con fricación/sibilancia, no identifica fonema.' : f.voiced ? 'Pista: componente sonoro presente; revisar F0, espectro y audio.' : 'Pista: segmento no sonoro o transitorio; el rasgo aislado no distingue consonantes.';
+  $('featureCue').textContent=cue;
+}
+function featureSummary(ms=5000) {
+  const recent=R.featureLog.filter(x=>x.t>Date.now()-ms);
+  if (!recent.length) return null;
+  return {
+    f0:medianOf(recent.map(x=>x.f0).filter(x=>x>0)),
+    dbfs:medianOf(recent.map(x=>x.dbfs)),
+    centroid:medianOf(recent.map(x=>x.centroid)),
+    zcr:medianOf(recent.map(x=>x.zcr)),
+    f1:medianOf(recent.map(x=>x.f1).filter(x=>x>0)),
+    f2:medianOf(recent.map(x=>x.f2).filter(x=>x>0)),
+    voicedRatio:recent.filter(x=>x.voiced).length/recent.length,
+    windowMs:ms
+  };
+}
+function formatFeatureSummary(f) {
+  if (!f) return 'Sin muestra acústica disponible.';
+  return `F0 mediana ${f.f0 ? Math.round(f.f0)+' Hz' : 's/d'} · nivel ${f.dbfs.toFixed(1)} dBFS · centroide ${Math.round(f.centroid)} Hz · sonoridad ${Math.round(f.voicedRatio*100)}% · picos F1/F2 ${f.f1?Math.round(f.f1):'—'}/${f.f2?Math.round(f.f2):'—'} Hz`;
+}
+function renderFeatureCorrelations() {
+  const el=$('phraseCorrelations'); if (!el) return;
+  const rows=state.transcript.slice(-12).reverse();
+  el.innerHTML=rows.length ? rows.map(p=>`<div class="correlation-item"><div>${escapeHtml(p.text)}</div><div class="corr-meta">${formatFeatureSummary(p.features)}</div></div>`).join('') : 'Las frases reconocidas aparecerán aquí con sus medidas cercanas.';
+}
+function drawFeatureCharts() {
+  const now=Date.now(), series=R.featureLog.filter(x=>x.t>=now-8000);
+  featureCharts.forEach(item=>{
+    const canvas=item.canvas, ctx=canvas.getContext('2d'), w=canvas.clientWidth, h=canvas.clientHeight;
+    if (!w || !h) return;
+    ctx.clearRect(0,0,w,h); ctx.fillStyle='#060a12'; ctx.fillRect(0,0,w,h);
+    const left=34,right=7,top=14,bottom=17,gw=w-left-right,gh=h-top-bottom;
+    ctx.font='9px -apple-system,sans-serif'; ctx.fillStyle='#8b9ac4'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    for(let k=0;k<=3;k++){const y=top+gh*k/3;ctx.strokeStyle='rgba(60,231,255,.10)';ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();
+      const val=item.max-(item.max-item.min)*k/3;ctx.fillText(item.key==='dbfs'?Math.round(val):item.key==='zcr'?val.toFixed(2):Math.round(val),2,y);}
+    if(series.length<2){ctx.fillStyle='#8b9ac4';ctx.textAlign='center';ctx.fillText(A?'Capturando…':'Inicia micrófono',w/2,h/2);return;}
+    const t0=Math.max(now-8000,series[0].t), span=Math.max(1,now-t0);
+    ctx.beginPath();let started=false;
+    for(const x of series){const value=x[item.key]; if(!Number.isFinite(value) || (item.key==='f0' && value<=0)){started=false;continue;}
+      const px=left+(x.t-t0)/span*gw, py=top+(1-clamp((value-item.min)/(item.max-item.min),0,1))*gh;
+      if(!started){ctx.moveTo(px,py);started=true;}else ctx.lineTo(px,py);}
+    ctx.strokeStyle=item.color;ctx.lineWidth=1.7;ctx.stroke();ctx.textAlign='right';ctx.textBaseline='alphabetic';ctx.fillStyle='#8b9ac4';ctx.fillText('8 s',w-right,h-3);
+  });
+}
+
 function loop() {
   if (!A) return;
   state.frame++;
   const now = Date.now(), D = P.detect;
   A.an.getByteFrequencyData(freqData);
+  A.rawAn.getByteFrequencyData(featureFreqData);
   A.an.getFloatTimeDomainData(timeF);
 
   let sum = 0, peak = 0;
@@ -939,9 +1078,13 @@ function loop() {
   } else if (voiceLike && !D.requirePitch) R.lastVoiceTs = now;
   R.voiceActive = now - R.lastVoiceTs < D.hangoverMs;
 
+  if (state.frame % 6 === 0) {
+    recordAcousticFeatures(now);
+    updateLive();
+    drawFeatureCharts();
+  }
   pushWaveColumn();
   drawTravel(); drawSpectrum(); drawSpectrogram();
-  if (state.frame % 6 === 0) updateLive();
   state.rafId = requestAnimationFrame(loop);
 }
 function startLoop() { if (state.rafId) cancelAnimationFrame(state.rafId); state.rafId = requestAnimationFrame(loop); }
@@ -1146,7 +1289,7 @@ function commitPhrase(raw, confidence) {
   if (P.text.autoPunctuation) text = autoPunctuate(text);
   if (text.length < 2 || confidence < P.text.minConfidence) return;
   const voice = P.text.labelSpeaker ? classifyVoice(medianPitch(4000)) : null;
-  state.transcript.push({ text, confidence, ts: Date.now(), voiceClass: voice });
+  state.transcript.push({ text, confidence, ts: Date.now(), voiceClass: voice, features: featureSummary(5000) });
   R.markers.push({ f: R.waveFrame, text, color: voice ? voice.color : '#3ce7ff', id: R.markerId++ });
   renderTranscript();
 }
@@ -1162,12 +1305,13 @@ function renderTranscript() {
       return `<div class="phrase ${show ? p.voiceClass.cls : ''}">
         <div class="meta"><span>${time}</span><span>${show ? `<span class="voice ${p.voiceClass.cls}">${p.voiceClass.label}</span>` : ''}</span></div>
         <div class="text">${escapeHtml(p.text)}</div>
-        <div class="conf">confianza ${Math.round(p.confidence * 100)}%</div></div>`;
+        <div class="conf">confianza ${Math.round(p.confidence * 100)}%</div>
+        ${p.features ? `<div class="conf">Rasgos cercanos (aprox.): ${escapeHtml(formatFeatureSummary(p.features))}</div>` : ''}</div>`;
     }).join('');
     el.scrollTop = el.scrollHeight;
   }
   $('interim').textContent = state.interim || '';
-  updateStats();
+  updateStats(); renderFeatureCorrelations();
 }
 function updateStats() {
   const all = state.transcript.map(p => p.text).join(' ').trim();
@@ -1215,7 +1359,7 @@ function handleError(ev) {
    ============================================================ */
 function resetRuntime() {
   R.pitch = R.pitchSm = R.noPitch = R.ampSm = R.ratio = 0; R.lastVoiceTs = 0; R.voiceActive = false;
-  R.pitchLog = []; R.hist = []; R.markers = []; R.waveFrame = 0;
+  R.pitchLog = []; R.hist = []; R.markers = []; R.waveFrame = 0; R.featureLog = [];
 }
 async function startListening() {
   if (location.protocol === 'file:') { $('modal').classList.add('show'); return; }
