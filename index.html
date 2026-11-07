@@ -147,6 +147,14 @@ header .status-dot.sim{background:var(--amber);
 .correlation-list{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow:auto}
 .correlation-item{border-left:2px solid var(--cyan);padding:5px 7px;background:rgba(255,255,255,.025);border-radius:0 6px 6px 0;font-size:.7rem;color:var(--txt)}
 .correlation-item .corr-meta{font-size:.6rem;color:var(--muted);margin-top:2px;line-height:1.4}
+.theory-card{background:rgba(60,231,255,.045);border:1px solid rgba(60,231,255,.28);border-radius:11px;padding:9px 10px;color:var(--muted);font-size:.7rem;line-height:1.5}
+.theory-card summary{color:var(--cyan);font-weight:700;font-size:.76rem;cursor:pointer}
+.theory-body p{margin:8px 0}.formula{padding:7px;text-align:center;background:rgba(0,0,0,.25);border-radius:7px;color:var(--green);font:700 .9rem "SF Mono",Consolas,monospace}
+.phrase-statistics{font-size:.7rem;line-height:1.55;color:var(--txt)}
+.phonetic-correlation-list{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.pearson-item{padding:6px;border-radius:7px;background:rgba(255,255,255,.025);font-size:.64rem;color:var(--txt);line-height:1.4}
+.pearson-item b{color:var(--cyan)}
+@media(max-width:360px){.phonetic-correlation-list{grid-template-columns:1fr}}
 @media(max-width:360px){.feature-grid{grid-template-columns:1fr}.feature-card{height:135px}.feature-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* ============ VISTA TEXTO ============ */
@@ -478,7 +486,17 @@ header .status-dot.sim{background:var(--amber);
     <!-- ========== TAB ANÁLISIS FONÉTICO ========== -->
     <div class="tab-panel" id="panel-phonetic">
       <div class="feature-view">
-        <div class="feature-note"><b>Mediciones acústicas y pistas, no identificación automática de fonemas.</b> dBFS es nivel relativo digital (no dB SPL calibrado); F1/F2 son picos espectrales aproximados, no formantes LPC.</div>
+        <details class="theory-card">
+          <summary>De la onda al texto: relación estadística fonética</summary>
+          <div class="theory-body">
+            <p><b>1 · Señal:</b> el micrófono digitaliza la presión sonora como muestras x[n]. La forma de onda conserva amplitud y tiempo; el espectro y el espectrograma describen energía por frecuencia y su cambio temporal.</p>
+            <p><b>2 · Rasgos:</b> F0, nivel relativo, centroide, cruces por cero y picos de bandas resumen aspectos del sonido. En conjunto forman una observación acústica X; no equivalen por sí solos a fonemas.</p>
+            <p><b>3 · Estadística de voz:</b> un reconocedor estima qué secuencia de palabras es más probable dadas las observaciones acústicas y el idioma:</p>
+            <div class="formula">Ŵ = argmax<sub>W</sub> P(X | W) · P(W)</div>
+            <p><b>4 · Texto:</b> Chrome aporta la transcripción. La app asocia a cada frase las medidas de hasta 5 s cercanos y calcula resúmenes y correlaciones descriptivas entre frases; no alinea cada fonema ni demuestra causalidad.</p>
+          </div>
+        </details>
+        <div class="feature-note"><b>Precisión:</b> dBFS es nivel digital relativo, no dB SPL calibrado; F1/F2 son picos aproximados, no formantes LPC. Los resultados dependen del micrófono, la distancia y el ruido.</div>
         <div class="feature-stats">
           <div class="stat"><div class="k">Nivel relativo</div><div class="v" id="featureDb">— dBFS</div></div>
           <div class="stat"><div class="k">F0 / tono</div><div class="v" id="featureF0Live">— Hz</div></div>
@@ -495,7 +513,15 @@ header .status-dot.sim{background:var(--amber);
           <div class="feature-card"><div class="feature-title">Cruces por cero <span>(por muestra)</span></div><canvas id="featureZcrCanvas"></canvas></div>
         </div>
         <div class="correlation-card">
-          <div class="feature-title">Frases de Chrome ↔ rasgos acústicos cercanos</div>
+          <div class="feature-title">Estadística de las frases reconocidas</div>
+          <div class="correlation-hint">Promedios y desviaciones entre frases de esta sesión; las frases son la unidad estadística.</div>
+          <div id="phraseStatistics" class="phrase-statistics">Aún no hay frases con medidas.</div>
+          <div class="feature-title">Correlaciones de Pearson entre rasgos</div>
+          <div class="correlation-hint">r va de −1 a +1. Se muestran desde 3 frases; una correlación describe asociación, no causalidad.</div>
+          <div id="phoneticCorrelations" class="phonetic-correlation-list">Se requieren al menos 3 frases reconocidas con medidas.</div>
+        </div>
+        <div class="correlation-card">
+          <div class="feature-title">Textos de Chrome ↔ rasgos acústicos cercanos</div>
           <div class="correlation-hint">Resumen aproximado de hasta 5 s alrededor del resultado; no es alineación fonema-tiempo.</div>
           <div id="phraseCorrelations" class="correlation-list">Las frases reconocidas aparecerán aquí con sus medidas cercanas.</div>
         </div>
@@ -1028,10 +1054,52 @@ function formatFeatureSummary(f) {
   if (!f) return 'Sin muestra acústica disponible.';
   return `F0 mediana ${f.f0 ? Math.round(f.f0)+' Hz' : 's/d'} · nivel ${f.dbfs.toFixed(1)} dBFS · centroide ${Math.round(f.centroid)} Hz · sonoridad ${Math.round(f.voicedRatio*100)}% · picos F1/F2 ${f.f1?Math.round(f.f1):'—'}/${f.f2?Math.round(f.f2):'—'} Hz`;
 }
+function meanAndSd(values) {
+  const x=values.filter(Number.isFinite); if (!x.length) return null;
+  const mean=x.reduce((a,b)=>a+b,0)/x.length;
+  const sd=Math.sqrt(x.reduce((a,b)=>a+(b-mean)**2,0)/x.length);
+  return {mean,sd,n:x.length};
+}
+function pearsonPair(xs,ys) {
+  const pairs=[]; for(let i=0;i<Math.min(xs.length,ys.length);i++) if(Number.isFinite(xs[i])&&Number.isFinite(ys[i])) pairs.push([xs[i],ys[i]]);
+  if(pairs.length<3) return {n:pairs.length,r:null};
+  const mx=pairs.reduce((a,p)=>a+p[0],0)/pairs.length, my=pairs.reduce((a,p)=>a+p[1],0)/pairs.length;
+  let cov=0,vx=0,vy=0; for(const [x,y] of pairs){cov+=(x-mx)*(y-my);vx+=(x-mx)**2;vy+=(y-my)**2;}
+  return {n:pairs.length,r:vx&&vy?cov/Math.sqrt(vx*vy):null};
+}
+function strengthLabel(r) {
+  if(r===null) return 'sin variación suficiente';
+  const a=Math.abs(r); return a<0.2?'muy débil':a<0.4?'débil':a<0.6?'moderada':a<0.8?'fuerte':'muy fuerte';
+}
+function renderPhraseStatistics() {
+  const features=state.transcript.map(p=>p.features).filter(Boolean);
+  const summary=$('phraseStatistics'), corr=$('phoneticCorrelations');
+  if(!summary||!corr) return;
+  if(!features.length){summary.textContent='Aún no hay frases con medidas.';corr.textContent='Se requieren al menos 3 frases reconocidas con medidas.';return;}
+  const f0=meanAndSd(features.map(f=>f.f0).filter(v=>v>0));
+  const db=meanAndSd(features.map(f=>f.dbfs));
+  const centroid=meanAndSd(features.map(f=>f.centroid));
+  const zcr=meanAndSd(features.map(f=>f.zcr));
+  const voiced=meanAndSd(features.map(f=>f.voicedRatio));
+  const fmt=(v,d=1)=>v?`${v.mean.toFixed(d)} ± ${v.sd.toFixed(d)}`:'—';
+  summary.innerHTML=`n = <b>${features.length}</b> frases con medidas<br>F0 media ± DE: <b>${fmt(f0)} Hz</b> · Nivel: <b>${fmt(db)} dBFS</b><br>Centroide: <b>${fmt(centroid,0)} Hz</b> · Cruces cero: <b>${fmt(zcr,3)}</b> · Sonoridad: <b>${fmt(voiced,2)}</b>`;
+  const pairs=[
+    ['F0 ↔ centroide',f=>f.f0>0?f.f0:null,f=>f.centroid],
+    ['Centroide ↔ cruces cero',f=>f.centroid,f=>f.zcr],
+    ['Nivel ↔ F0',f=>f.f0>0?f.f0:null,f=>f.dbfs],
+    ['F0 ↔ sonoridad',f=>f.f0>0?f.f0:null,f=>f.voicedRatio]
+  ];
+  corr.innerHTML=pairs.map(([name,x,y])=>{
+    const result=pearsonPair(features.map(x),features.map(y));
+    const value=result.r===null?'r = —':`r = ${result.r.toFixed(2)} · ${strengthLabel(result.r)}`;
+    return `<div class="pearson-item"><b>${name}</b><br>${value} · n=${result.n}</div>`;
+  }).join('');
+}
 function renderFeatureCorrelations() {
   const el=$('phraseCorrelations'); if (!el) return;
   const rows=state.transcript.slice(-12).reverse();
   el.innerHTML=rows.length ? rows.map(p=>`<div class="correlation-item"><div>${escapeHtml(p.text)}</div><div class="corr-meta">${formatFeatureSummary(p.features)}</div></div>`).join('') : 'Las frases reconocidas aparecerán aquí con sus medidas cercanas.';
+  renderPhraseStatistics();
 }
 function drawFeatureCharts() {
   const now=Date.now(), series=R.featureLog.filter(x=>x.t>=now-8000);
@@ -1471,14 +1539,20 @@ function download(content, filename, mime) {
 }
 $('btnTxt').addEventListener('click', () => {
   if (!state.transcript.length) { toast('No hay texto', 'error'); return; }
-  download(state.transcript.map(p => `[${new Date(p.ts).toLocaleString('es')}] ${p.voiceClass ? '[' + p.voiceClass.label + '] ' : ''}${p.text}`).join('\n') + '\n', `transcripcion_${Date.now()}.txt`, 'text/plain');
+  download(state.transcript.map(p => {
+    const f=p.features;
+    const rasgos=f ? `\n  Rasgos cercanos: F0 ${f.f0?Math.round(f.f0)+' Hz':'—'}; nivel ${f.dbfs.toFixed(1)} dBFS; centroide ${Math.round(f.centroid)} Hz; cruces cero ${f.zcr.toFixed(3)}; F1/F2 aprox. ${f.f1?Math.round(f.f1):'—'}/${f.f2?Math.round(f.f2):'—'} Hz; sonoridad ${Math.round(f.voicedRatio*100)}%.` : '\n  Rasgos: sin medición.';
+    return `[${new Date(p.ts).toLocaleString('es')}] ${p.voiceClass ? '[' + p.voiceClass.label + '] ' : ''}${p.text}${rasgos}`;
+  }).join('\n') + '\n', `transcripcion_${Date.now()}.txt`, 'text/plain');
   toast('✅ TXT descargado', 'ok');
 });
 $('btnCsv').addEventListener('click', () => {
   if (!state.transcript.length) { toast('No hay texto', 'error'); return; }
-  let csv = 'timestamp,voice_class,text,confidence,language\n';
+  let csv = 'timestamp,voice_class,text,confidence,language,f0_median_hz,level_dbfs,centroid_hz,zero_crossing_rate,f1_peak_approx_hz,f2_peak_approx_hz,voiced_ratio\n';
+  const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   state.transcript.forEach(p => {
-    csv += `${new Date(p.ts).toISOString()},${p.voiceClass ? p.voiceClass.label : ''},"${p.text.replace(/"/g, '""')}",${p.confidence.toFixed(3)},${P.voice.language}\n`;
+    const f=p.features||{};
+    csv += [new Date(p.ts).toISOString(),p.voiceClass?p.voiceClass.label:'',p.text,p.confidence.toFixed(3),P.voice.language,f.f0?f.f0.toFixed(1):'',Number.isFinite(f.dbfs)?f.dbfs.toFixed(2):'',Number.isFinite(f.centroid)?f.centroid.toFixed(1):'',Number.isFinite(f.zcr)?f.zcr.toFixed(4):'',f.f1?f.f1.toFixed(1):'',f.f2?f.f2.toFixed(1):'',Number.isFinite(f.voicedRatio)?f.voicedRatio.toFixed(3):''].map(cell).join(',')+'\n';
   });
   download(csv, `transcripcion_${Date.now()}.csv`, 'text/csv'); toast('✅ CSV descargado', 'ok');
 });
