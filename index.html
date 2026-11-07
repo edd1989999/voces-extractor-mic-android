@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Voces · Extractor de Texto</title>
+<style>
+:root{
+  --bg:#0a0f1a;--panel:#0f1622;--panel2:#151f30;--line:#24324a;
+  --txt:#dce4ff;--muted:#8b9ac4;
+  --cyan:#3ce7ff;--green:#3cffb0;--amber:#ffc83c;--red:#ff5c7a;
+  --violet:#b48cff;--pink:#ff8cc8;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;
+  font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);color:var(--txt);
+  -webkit-user-select:none;user-select:none;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;touch-action:manipulation}
+input,textarea{-webkit-user-select:text;user-select:text}
+
+#app{display:flex;flex-direction:column;height:100vh;
+  height:100dvh;overflow:hidden}
+
+/* ============ HEADER ============ */
+header{
+  flex-shrink:0;
+  padding:calc(var(--safe-top) + 10px) 14px 10px;
+  background:linear-gradient(180deg,var(--panel),var(--panel2));
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  z-index:10;
+}
+header .brand{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+header .title{font-size:.95rem;font-weight:700;color:var(--txt);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .subtitle{font-size:.68rem;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .status-dot{width:10px;height:10px;border-radius:50%;
+  background:var(--muted);flex-shrink:0;transition:.3s}
+header .status-dot.active{background:var(--green);
+  box-shadow:0 0 12px var(--green);animation:pulse 1.2s infinite}
+header .status-dot.sim{background:var(--amber);
+  box-shadow:0 0 12px var(--amber);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.45}}
+
+/* ============ TABS ============ */
+.tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--line);
+  flex-shrink:0}
+.tab{flex:1;padding:11px 8px;text-align:center;font-size:.74rem;
+  font-weight:600;color:var(--muted);background:transparent;border:none;
+  border-bottom:2px solid transparent;cursor:pointer;transition:.15s;
+  display:flex;flex-direction:column;align-items:center;gap:3px}
+.tab .icon{font-size:1.1rem}
+.tab.active{color:var(--cyan);border-bottom-color:var(--cyan);
+  background:rgba(60,231,255,.05)}
+
+/* ============ CONTENIDO ============ */
+.content{flex:1;overflow:hidden;position:relative;min-height:0}
+.tab-panel{position:absolute;inset:0;overflow-y:auto;padding:12px;
+  display:none;-webkit-overflow-scrolling:touch}
+.tab-panel.active{display:block}
+
+/* ============ VISTA CAPTURA ============ */
+.capture-center{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;min-height:calc(100% - 20px);gap:20px;padding:10px}
+
+.pitch-big{text-align:center;width:100%;max-width:280px}
+.pitch-big .label{font-size:.68rem;color:var(--muted);
+  text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px}
+.pitch-big .value{font-size:3.5rem;font-weight:800;line-height:1;
+  font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,var(--cyan),var(--green));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  font-family:"SF Mono",Consolas,monospace;transition:.2s}
+.pitch-big .unit{font-size:.85rem;color:var(--muted);margin-top:2px}
+.pitch-big .class{font-size:.9rem;font-weight:700;margin-top:8px;
+  text-transform:uppercase;letter-spacing:1px;transition:.2s}
+
+.levels{display:flex;gap:14px;width:100%;max-width:280px}
+.level{flex:1;background:rgba(255,255,255,.03);border:1px solid var(--line);
+  border-radius:12px;padding:10px;text-align:center}
+.level .k{font-size:.6rem;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:4px}
+.level .v{font-size:1.15rem;font-weight:700;color:var(--green);
+  font-family:"SF Mono",Consolas,monospace;transition:.2s}
+
+.btn-big{
+  width:100%;max-width:320px;padding:18px 20px;border-radius:16px;
+  border:none;font-size:1.05rem;font-weight:700;cursor:pointer;
+  transition:.15s;display:flex;align-items:center;justify-content:center;
+  gap:10px;letter-spacing:.3px;touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;min-height:60px}
+.btn-big.primary{background:linear-gradient(135deg,#0e6b78,#3ce7ff);
+  color:#060a12;box-shadow:0 4px 20px rgba(60,231,255,.35)}
+.btn-big.primary:active{transform:scale(0.97);box-shadow:0 2px 10px rgba(60,231,255,.25)}
+.btn-big.rec{background:linear-gradient(135deg,#c41fb3,#ff5c7a);
+  color:#fff;box-shadow:0 4px 24px rgba(255,92,122,.5);animation:pulseRec 1.5s infinite}
+.btn-big.rec:active{transform:scale(0.97);animation:none}
+@keyframes pulseRec{50%{box-shadow:0 4px 32px rgba(255,92,122,.8)}}
+.btn-big.rec .dot{width:12px;height:12px;border-radius:50%;
+  background:#fff;animation:pulse 1.2s infinite}
+.btn-big.sim{background:linear-gradient(135deg,#6b5319,#ffc83c);
+  color:#060a12;box-shadow:0 4px 20px rgba(255,200,60,.35)}
+.btn-big.sim:active{transform:scale(0.97)}
+.btn-big:disabled{opacity:.4;cursor:not-allowed;animation:none}
+
+/* ============ VISTA ONDA ============ */
+.wave-container{display:flex;flex-direction:column;gap:10px;height:100%}
+.wave-box{background:#060a12;border:1px solid var(--line);border-radius:12px;
+  position:relative;overflow:hidden;flex:1;min-height:80px}
+.wave-box canvas{display:block;width:100%;height:100%}
+.wave-label{position:absolute;top:8px;left:10px;font-size:.62rem;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.8px;
+  background:rgba(10,16,28,.8);padding:2px 6px;border-radius:4px;
+  font-weight:600;pointer-events:none;z-index:2}
+.wave-label span{color:var(--cyan)}
+
+/* ============ VISTA TEXTO ============ */
+.text-view{display:flex;flex-direction:column;height:100%;gap:8px}
+.text-view .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;
+  flex-shrink:0}
+.text-view .stat{background:rgba(255,255,255,.03);border:1px solid var(--line);
+  border-radius:10px;padding:8px 6px;text-align:center}
+.text-view .stat .k{font-size:.56rem;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+.text-view .stat .v{font-size:.95rem;font-weight:700;color:var(--green);
+  font-family:"SF Mono",Consolas,monospace}
+
+#transcript{flex:1;overflow-y:auto;background:rgba(0,0,0,.3);
+  border:1px solid var(--line);border-radius:12px;padding:10px;
+  font-size:.9rem;line-height:1.6;-webkit-overflow-scrolling:touch;min-height:0}
+#transcript .empty{text-align:center;color:var(--muted);padding:30px 12px;
+  font-size:.85rem;line-height:1.6}
+#transcript .empty b{color:var(--cyan)}
+
+.phrase{padding:8px 10px;margin-bottom:6px;border-radius:8px;
+  border-left:3px solid var(--line);background:rgba(255,255,255,.03)}
+.phrase.grave{border-left-color:#3ce7ff}
+.phrase.medio{border-left-color:#3cffb0}
+.phrase.agudo{border-left-color:#ff8cc8}
+.phrase.muy-grave{border-left-color:#0e6b78}
+.phrase.muy-agudo{border-left-color:#ff5c7a}
+.phrase .meta{display:flex;justify-content:space-between;
+  font-size:.62rem;color:var(--muted);margin-bottom:3px;
+  text-transform:uppercase;letter-spacing:.4px}
+.phrase .meta .voice{font-weight:700}
+.phrase .meta .voice.grave{color:#3ce7ff}
+.phrase .meta .voice.medio{color:#3cffb0}
+.phrase .meta .voice.agudo{color:#ff8cc8}
+.phrase .meta .voice.muy-grave{color:#3ce7ff}
+.phrase .meta .voice.muy-agudo{color:#ff5c7a}
+.phrase .text{color:var(--txt);word-wrap:break-word;font-size:.88rem}
+.phrase .conf{font-size:.6rem;color:var(--muted);margin-top:3px}
+
+#interim{background:rgba(60,231,255,.08);border:1px dashed rgba(60,231,255,.4);
+  border-radius:10px;padding:8px 10px;font-size:.85rem;color:var(--cyan);
+  font-style:italic;min-height:36px;flex-shrink:0}
+#interim:empty{display:none}
+
+.text-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  flex-shrink:0}
+.text-actions button{padding:10px 4px;border-radius:10px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line);
+  color:var(--txt);font-size:.66rem;font-weight:600;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  touch-action:manipulation;min-height:52px}
+.text-actions button .ico{font-size:1.05rem}
+.text-actions button:active{background:rgba(60,231,255,.15)}
+.text-actions button.danger{color:var(--red);border-color:rgba(255,92,122,.4)}
+
+/* ============ VISTA AJUSTES ============ */
+.settings-view{display:flex;flex-direction:column;gap:12px;padding-bottom:20px}
+.sec-title{font-size:.66rem;color:var(--violet);text-transform:uppercase;
+  letter-spacing:1px;margin:8px 0 6px;padding-bottom:4px;
+  border-bottom:1px solid rgba(180,140,255,.25)}
+.sec-title:first-child{margin-top:0}
+
+.setting-card{background:rgba(255,255,255,.03);border:1px solid var(--line);
+  border-radius:12px;padding:12px}
+.setting-card label{display:flex;justify-content:space-between;
+  font-size:.72rem;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.7px;margin-bottom:6px}
+.setting-card label .val{color:var(--cyan);font-weight:700;
+  font-family:"SF Mono",Consolas,monospace;text-transform:none;letter-spacing:0}
+.setting-card select{width:100%;background:#060a12;border:1px solid var(--line);
+  border-radius:10px;padding:12px;color:var(--txt);font-size:.9rem;
+  font-family:-apple-system,sans-serif;outline:none;-webkit-appearance:none;
+  appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%238b9ac4' d='M6 8L0 0h12z'/></svg>");
+  background-repeat:no-repeat;background-position:right 12px center;
+  padding-right:36px}
+.setting-card input[type=range]{width:100%;accent-color:var(--cyan);
+  height:32px;cursor:pointer;touch-action:manipulation}
+.setting-card .check{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;font-size:.82rem;color:var(--txt)}
+.setting-card .check input[type=checkbox]{width:22px;height:22px;
+  accent-color:var(--cyan);cursor:pointer}
+
+.diag{background:rgba(0,0,0,.3);border:1px solid var(--line);
+  border-radius:12px;padding:10px;font-size:.72rem;line-height:1.8;
+  font-family:"SF Mono",Consolas,monospace;color:var(--muted)}
+.diag .row{display:flex;justify-content:space-between}
+.diag .ok{color:var(--green)}
+.diag .err{color:var(--red)}
+.diag .warn{color:var(--amber)}
+
+.warn-card{background:rgba(255,200,60,.08);border:1px solid rgba(255,200,60,.35);
+  border-radius:12px;padding:12px;font-size:.78rem;color:var(--muted);
+  line-height:1.55}
+.warn-card b{color:var(--amber)}
+.warn-card code{background:#060a12;color:var(--cyan);padding:1px 5px;
+  border-radius:4px;font-size:.85em}
+
+/* ============ TOAST ============ */
+#toast{position:fixed;left:50%;transform:translateX(-50%) translateY(80px);
+  bottom:calc(var(--safe-bottom) + 80px);
+  padding:12px 20px;border-radius:12px;font-size:.85rem;font-weight:600;
+  z-index:2000;transition:.3s;pointer-events:none;
+  max-width:calc(100vw - 40px);text-align:center;
+  box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.info{background:rgba(60,231,255,.95);color:#060a12}
+#toast.ok{background:rgba(60,255,176,.95);color:#060a12}
+#toast.error{background:rgba(255,92,122,.95);color:#fff}
+#toast.warn{background:rgba(255,200,60,.95);color:#060a12}
+
+/* ============ MODAL ============ */
+#modal{position:fixed;inset:0;background:rgba(6,10,18,.92);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  z-index:1500;display:none;align-items:center;justify-content:center;
+  padding:20px}
+#modal.show{display:flex}
+.modal-card{max-width:420px;width:100%;background:var(--panel);
+  border:1px solid var(--line);border-radius:18px;padding:22px;
+  box-shadow:0 24px 60px rgba(0,0,0,.7)}
+.modal-card h3{margin:0 0 12px;color:var(--amber);font-size:1.05rem;
+  display:flex;gap:10px;align-items:center}
+.modal-card p{color:var(--muted);line-height:1.65;font-size:.85rem;
+  margin:0 0 12px}
+.modal-card code{background:#060a12;color:var(--cyan);padding:2px 6px;
+  border-radius:4px;font-size:.85em}
+.modal-card ul{color:var(--muted);font-size:.82rem;line-height:1.7;
+  margin:0 0 14px 20px;padding:0}
+.modal-card .btn-row{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.modal-card .btn-row button{padding:14px;border-radius:12px;border:none;
+  font-size:.9rem;font-weight:700;cursor:pointer;min-height:48px;
+  touch-action:manipulation}
+.modal-card .btn-row button.primary{background:linear-gradient(135deg,#0e6b78,#3ce7ff);
+  color:#060a12}
+.modal-card .btn-row button.ghost{background:transparent;
+  border:1px solid var(--line);color:var(--muted)}
+.modal-card .btn-row button:active{transform:scale(0.97)}
+
+/* ============ RESPONSIVE ============ */
+@media (min-height: 700px){
+  .pitch-big .value{font-size:4rem}
+}
+@media (max-height: 600px){
+  .pitch-big .value{font-size:2.8rem}
+  header{padding-top:calc(var(--safe-top) + 6px);padding-bottom:6px}
+  .tab{padding:8px 4px;font-size:.7rem}
+  .tab .icon{font-size:.95rem}
+}
+/* ===== AÑADIDOS v2 ===== */
+.levels{gap:8px}
+.level .v{font-size:1rem}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:.72rem;font-weight:700;border:1px solid var(--line);color:var(--muted);background:rgba(255,255,255,.03);transition:.2s}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chip.on{color:var(--green);border-color:rgba(60,255,176,.5);background:rgba(60,255,176,.08)}
+.chip.on .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+.chip.warn{color:var(--amber);border-color:rgba(255,200,60,.45)}
+.chip.warn .dot{background:var(--amber)}
+.phrase.notone{border-left-color:#8b9ac4}
+.phrase .meta .voice.notone{color:#8b9ac4}
+.setting-card .hint{font-size:.66rem;color:var(--muted);margin-top:6px;line-height:1.4}
+.settings-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.settings-actions button{padding:12px 6px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--txt);font-size:.74rem;font-weight:600;cursor:pointer;min-height:46px;touch-action:manipulation}
+.settings-actions button.danger{color:var(--red);border-color:rgba(255,92,122,.4)}
+.settings-actions button:active{background:rgba(60,231,255,.15)}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <header>
+    <div class="brand">
+      <div class="title">🎤 Extractor de Voces</div>
+      <div class="subtitle" id="headerStatus">Listo para empezar</div>
+    </div>
+    <div class="status-dot" id="statusDot"></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="capture">
+      <span class="icon">🎙️</span>Captura
+    </button>
+    <button class="tab" data-tab="wave">
+      <span class="icon">🌊</span>Onda
+    </button>
+    <button class="tab" data-tab="text">
+      <span class="icon">📝</span>Texto
+    </button>
+    <button class="tab" data-tab="settings">
+      <span class="icon">⚙️</span>Ajustes
+    </button>
+  </div>
+
+  <div class="content">
+
+    <!-- ========== TAB CAPTURA ========== -->
+    <div class="tab-panel active" id="panel-capture">
+      <div class="capture-center">
+
+        <div class="pitch-big">
+          <div class="label">Frecuencia fundamental</div>
+          <div class="value" id="bigPitch">—</div>
+          <div class="unit">Hz</div>
+          <div class="class" id="pitchClass" style="color:var(--muted)">silencio</div>
+        </div>
+
+        <div class="chip" id="voiceChip"><span class="dot"></span><span>Sin voz</span></div>
+
+        <div class="levels">
+          <div class="level">
+            <div class="k">RMS</div>
+            <div class="v" id="rmsLevel">0%</div>
+          </div>
+          <div class="level">
+            <div class="k">Banda vocal</div>
+            <div class="v" id="bandLevel">0%</div>
+          </div>
+          <div class="level">
+            <div class="k">Nivel</div>
+            <div class="v" id="voiceLevel">—</div>
+          </div>
+        </div>
+
+        <button class="btn-big primary" id="btnStart">
+          <span style="font-size:1.3rem">🎤</span>
+          <span>Iniciar micrófono</span>
+        </button>
+
+        <button class="btn-big sim" id="btnSim">
+          <span style="font-size:1.3rem">🧪</span>
+          <span>Modo simulación</span>
+        </button>
+
+        <div style="text-align:center;font-size:.72rem;color:var(--muted);
+          max-width:280px;line-height:1.55">
+          <b style="color:var(--cyan)">Tip:</b> la simulación usa una voz sintética
+          silenciosa que pasa por el mismo análisis real (banda vocal, F0 y ondas).
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========== TAB ONDA ========== -->
+    <div class="tab-panel" id="panel-wave">
+      <div class="wave-container">
+        <div class="wave-box" style="flex:1.7">
+          <canvas id="waveCanvas"></canvas>
+          <div class="wave-label">Onda viajera · <span>voz → texto</span></div>
+        </div>
+        <div class="wave-box" style="flex:1">
+          <canvas id="specCanvas"></canvas>
+          <div class="wave-label">Espectro · <span id="specRange"></span></div>
+        </div>
+        <div class="wave-box" style="flex:1.2">
+          <canvas id="spectroCanvas"></canvas>
+          <div class="wave-label">Espectrograma · <span id="spectroRange"></span></div>
+        </div>
+      </div>
+    </div>
+
+    
+<!-- ========== TAB TEXTO ========== -->
+    <div class="tab-panel" id="panel-text">
+      <div class="text-view">
+
+        <div class="stats">
+          <div class="stat">
+            <div class="k">Palabras</div>
+            <div class="v" id="statWords">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">Frases</div>
+            <div class="v" id="statPhrases">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">Conf.</div>
+            <div class="v" id="statConf">—</div>
+          </div>
+        </div>
+
+        <div id="transcript">
+          <div class="empty">
+            Pulsa <b>Iniciar micrófono</b> o <b>Simulación</b>.<br>
+            El texto aparecerá aquí con etiqueta de voz.
+          </div>
+        </div>
+
+        <div id="interim"></div>
+
+        <div class="text-actions">
+          <button id="btnCopy">
+            <span class="ico">📋</span>Copiar
+          </button>
+          <button id="btnTxt">
+            <span class="ico">⬇</span>TXT
+          </button>
+          <button id="btnCsv">
+            <span class="ico">📊</span>CSV
+          </button>
+          <button class="danger" id="btnClear">
+            <span class="ico">🗑</span>Limpiar
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========== TAB AJUSTES ========== -->
+    <div class="tab-panel" id="panel-settings">
+      <div class="settings-view">
+
+        <div id="settingsFields"></div>
+
+        <div class="settings-actions">
+          <button id="btnCopyParams">📋 Copiar parámetros</button>
+          <button class="danger" id="btnResetParams">↺ Restaurar</button>
+        </div>
+
+        <div class="sec-title">Diagnóstico</div>
+
+        <div class="diag" id="diagBox">
+          <div class="row"><span>Protocolo</span><span id="diagProtocol">—</span></div>
+          <div class="row"><span>Speech API</span><span id="diagSpeech">—</span></div>
+          <div class="row"><span>getUserMedia</span><span id="diagGUM">—</span></div>
+          <div class="row"><span>Permiso mic</span><span id="diagPerm">—</span></div>
+          <div class="row"><span>Secure context</span><span id="diagSecure">—</span></div>
+          <div class="row"><span>Muestreo</span><span id="diagRate">—</span></div>
+          <div class="row"><span>Frases descartadas (no voz)</span><span id="diagDrop">0</span></div>
+        </div>
+
+        <div class="warn-card">
+          <b>ℹ️ Cómo funciona:</b> los filtros de banda, la detección de voz y las ondas
+          se aplican a tu propia cadena de audio. El motor de transcripción del navegador
+          (Chrome/Edge) escucha el micrófono por su cuenta; aquí sirve de
+          <b>puerta</b>: solo se aceptan frases cuando se detectó voz humana
+          (energía en la banda vocal + tono F0 dentro del rango). Requiere
+          <b>HTTPS</b> o <code>localhost</code>.
+        </div>
+
+      </div>
+    </div>
+
+  
+</div>
+</div>
+
+<!-- ========== TOAST ========== -->
+<div id="toast"></div>
+
+<!-- ========== MODAL FILE:// ========== -->
+<div id="modal">
+  <div class="modal-card">
+    <h3>⚠️ Modo file:// detectado</h3>
+    <p>El micrófono <b>solo funciona en HTTPS o localhost</b> por seguridad del navegador.</p>
+    <p><b>Opciones:</b></p>
+    <ul>
+      <li>Usar <b>Simulación</b> (funciona sin permisos)</li>
+      <li>Servir con <code>python -m http.server 8000</code></li>
+      <li>Subir a un hosting HTTPS</li>
+    </ul>
+    <div class="btn-row">
+      <button class="primary" id="modalSim">▶ Usar Simulación</button>
+      <button class="ghost" id="modalClose">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   1. PARÁMETROS  (todo lo ajustable vive aquí)
+   ============================================================ */
+const PROFILES = {
+  generic: { name: 'Genérico',        f0Min: 80,  f0Max: 400 },
+  male:    { name: 'Hombre adulto',   f0Min: 85,  f0Max: 180 },
+  female:  { name: 'Mujer adulta',    f0Min: 165, f0Max: 255 },
+  child:   { name: 'Niño/a',          f0Min: 250, f0Max: 400 },
+  elderly: { name: 'Persona mayor',   f0Min: 90,  f0Max: 220 }
+};
+
+const DEFAULTS = {
+  voice:  { profile: 'male', f0Min: 85, f0Max: 180, language: 'es-ES' },
+  band:   { highpassHz: 80, lowpassHz: 3400, formantLowHz: 300, formantHighHz: 3400 },
+  detect: { vadThreshold: 0.02, voiceBandRatio: 0.6, hangoverMs: 600,
+            pitchClarity: 0.35, requirePitch: true,
+            gateTranscript: true, gateWindowMs: 3000 },
+  audio:  { echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+            fftSize: 2048, smoothing: 0.5 },
+  wave:   { speed: 2, gain: 2.5, wavelength: 36, carrier: true,
+            markers: true, displayMaxHz: 4000 },
+  text:   { minConfidence: 0.5, autoPunctuation: true, filterFillers: true, labelSpeaker: true }
+};
+
+const LANGS = [
+  ['es-ES','Español (España)'],['es-MX','Español (México)'],['es-AR','Español (Argentina)'],
+  ['es-CO','Español (Colombia)'],['en-US','English (US)'],['en-GB','English (UK)'],
+  ['pt-BR','Português (BR)'],['fr-FR','Français'],['de-DE','Deutsch'],['it-IT','Italiano']
+];
+
+/* Esquema que genera la pantalla de Ajustes automáticamente */
+const SCHEMA = [
+  { title: 'Voz humana', fields: [
+    { path:'voice.profile', label:'Perfil de voz', type:'select',
+      options: [...Object.entries(PROFILES).map(([k,v]) => [k, `${v.name} (${v.f0Min}–${v.f0Max} Hz)`]), ['custom','Personalizado']] },
+    { path:'voice.f0Min', label:'Tono mínimo (F0)', type:'range', min:50,  max:300, step:5, unit:' Hz' },
+    { path:'voice.f0Max', label:'Tono máximo (F0)', type:'range', min:100, max:600, step:5, unit:' Hz' },
+    { path:'voice.language', label:'Idioma de transcripción', type:'select', options: LANGS }
+  ]},
+  { title: 'Banda de frecuencias (filtro de voz)', fields: [
+    { path:'band.highpassHz',   label:'Corte grave (pasa-altos)', type:'range', min:20,  max:300,  step:5,   unit:' Hz' },
+    { path:'band.lowpassHz',    label:'Corte agudo (pasa-bajos)', type:'range', min:1500,max:8000, step:100, unit:' Hz' },
+    { path:'band.formantLowHz', label:'Formantes · desde',        type:'range', min:150, max:800,  step:50,  unit:' Hz' },
+    { path:'band.formantHighHz',label:'Formantes · hasta',        type:'range', min:2000,max:5000, step:100, unit:' Hz' }
+  ]},
+  { title: 'Detección de voz', fields: [
+    { path:'detect.vadThreshold',   label:'Umbral de volumen (VAD)', type:'range', min:0.005, max:0.1, step:0.005 },
+    { path:'detect.voiceBandRatio', label:'Energía mínima en banda vocal', type:'range', min:0.1, max:0.9, step:0.05, fmt:v=>Math.round(v*100)+'%' },
+    { path:'detect.pitchClarity',   label:'Claridad mínima del tono', type:'range', min:0.1, max:0.9, step:0.05 },
+    { path:'detect.hangoverMs',     label:'Retención de voz', type:'range', min:100, max:2000, step:50, unit:' ms' },
+    { path:'detect.requirePitch',   label:'Exigir tono F0 en rango', type:'check' },
+    { path:'detect.gateTranscript', label:'Aceptar texto solo si hay voz humana', type:'check' },
+    { path:'detect.gateWindowMs',   label:'Ventana de puerta', type:'range', min:1000, max:8000, step:250, unit:' ms' }
+  ]},
+  { title: 'Captura de audio', fields: [
+    { path:'audio.echoCancellation', label:'Cancelar eco', type:'check', hint:'Se aplica al reiniciar el micrófono.' },
+    { path:'audio.noiseSuppression', label:'Supresión de ruido', type:'check' },
+    { path:'audio.autoGainControl',  label:'Control automático de ganancia', type:'check' },
+    { path:'audio.fftSize', label:'Resolución FFT', type:'select', num:true,
+      options:[[2048,'2048 (rápida)'],[4096,'4096 (más fina)']] },
+    { path:'audio.smoothing', label:'Suavizado del espectro', type:'range', min:0, max:0.95, step:0.05 }
+  ]},
+  { title: 'Ondas viajeras', fields: [
+    { path:'wave.speed',        label:'Velocidad de viaje', type:'range', min:1, max:6, step:0.5, unit:' px/f' },
+    { path:'wave.gain',         label:'Ganancia visual',    type:'range', min:0.5, max:8, step:0.5, unit:'×' },
+    { path:'wave.wavelength',   label:'Longitud de onda (a 150 Hz)', type:'range', min:16, max:80, step:2, unit:' px' },
+    { path:'wave.carrier',      label:'Mostrar onda portadora', type:'check' },
+    { path:'wave.markers',      label:'Frases viajando con la onda', type:'check' },
+    { path:'wave.displayMaxHz', label:'Frecuencia máx. mostrada', type:'range', min:2000, max:8000, step:500, unit:' Hz' }
+  ]},
+  { title: 'Texto', fields: [
+    { path:'text.minConfidence',   label:'Confianza mínima', type:'range', min:0, max:0.95, step:0.05, fmt:v=>Math.round(v*100)+'%' },
+    { path:'text.autoPunctuation', label:'Auto-puntuación', type:'check' },
+    { path:'text.filterFillers',   label:'Filtrar muletillas', type:'check' },
+    { path:'text.labelSpeaker',    label:'Etiquetar voz por tono', type:'check' }
+  ]}
+];
+
+const STORE_KEY = 'voces.params.v2';
+const PITCH_EVERY = 2;       // calcular F0 cada N frames
+const FILLERS = ['eh','em','mmm','mm','ah','uh','este','pues','bueno','o sea','digamos'];
+const VOWELS = [[730,1090],[270,2290],[300,870],[530,1840],[570,840]];
+const SIM_PHRASES = [
+  { text: 'Hola, mi nombre es Juan y tengo treinta y cinco años.', pitch: 120 },
+  { text: 'Encantada de conocerte, yo me llamo María.',           pitch: 210 },
+  { text: '¿A qué hora es la reunión de mañana?',                  pitch: 125 },
+  { text: 'Creo que son las diez de la mañana.',                   pitch: 215 },
+  { text: 'Necesito comprar leche, pan y huevos.',                 pitch: 118 },
+  { text: 'El clima está muy agradable hoy.',                      pitch: 195 }
+];
+const SR_API = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const clone = o => JSON.parse(JSON.stringify(o));
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+const $ = id => document.getElementById(id);
+let P = clone(DEFAULTS);
+
+function loadParams() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (!s) return;
+    for (const g in DEFAULTS) for (const k in DEFAULTS[g])
+      if (s[g] && typeof s[g][k] === typeof DEFAULTS[g][k]) P[g][k] = s[g][k];
+  } catch (e) {}
+}
+function saveParams() { try { localStorage.setItem(STORE_KEY, JSON.stringify(P)); } catch (e) {} }
+loadParams();
+
+const getP = path => path.split('.').reduce((o,k) => o[k], P);
+const setP = (path, v) => { const ks = path.split('.'); const l = ks.pop(); ks.reduce((o,k) => o[k], P)[l] = v; };
+
+/* ============================================================
+   2. ESTADO
+   ============================================================ */
+const state = {
+  isListening:false, userStopped:false, recognition:null, stream:null,
+  rafId:null, simTimers:[], simIndex:0, transcript:[], interim:'',
+  frame:0, mode:'idle'
+};
+let A = null;  // cadena de audio activa
+const R = {    // análisis en tiempo real
+  pitch:0, pitchSm:0, noPitch:0, rms:0, peak:0, ampSm:0, ratio:0,
+  lastVoiceTs:0, voiceActive:false, dropped:0, pitchLog:[],
+  hist:[], phase:0, waveFrame:0, markers:[], markerId:0
+};
+let freqData = new Uint8Array(1024);
+let timeF = new Float32Array(2048);
+let rawF = new Float32Array(1024);
+const corrBuf = new Float32Array(4096);
+
+const waveCanvas = $('waveCanvas'),   waveCtx = waveCanvas.getContext('2d');
+const specCanvas = $('specCanvas'),   specCtx = specCanvas.getContext('2d');
+const spectroCanvas = $('spectroCanvas'), spectroCtx = spectroCanvas.getContext('2d');
+
+/* ============================================================
+   3. UI BÁSICA
+   ============================================================ */
+function toast(msg, type='info', ms=2800) {
+  const el = $('toast'); el.textContent = msg; el.className = type + ' show';
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), ms);
+}
+function headerStatus(text, dot='') {
+  $('headerStatus').textContent = text; $('statusDot').className = 'status-dot ' + dot;
+}
+document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  tab.classList.add('active');
+  $('panel-' + tab.dataset.tab).classList.add('active');
+  if (tab.dataset.tab === 'wave') setTimeout(resizeAll, 50);
+}));
+
+function resizeCanvas(c, ctx) {
+  const r = c.getBoundingClientRect();
+  if (!r.width || !r.height) return false;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+  if (c.width === W && c.height === H) return false;
+  c.width = W; c.height = H; ctx.setTransform(dpr,0,0,dpr,0,0);
+  return true;
+}
+function resizeAll() {
+  resizeCanvas(waveCanvas, waveCtx);
+  resizeCanvas(specCanvas, specCtx);
+  if (resizeCanvas(spectroCanvas, spectroCtx)) {
+    spectroCtx.save(); spectroCtx.setTransform(1,0,0,1,0,0);
+    spectroCtx.fillStyle = '#060a12';
+    spectroCtx.fillRect(0,0,spectroCanvas.width,spectroCanvas.height);
+    spectroCtx.restore();
+  }
+  if (!A) { drawTravel(); drawSpectrum(); }
+}
+window.addEventListener('resize', resizeAll);
+window.addEventListener('orientationchange', () => setTimeout(resizeAll, 200));
+
+function updateLabels() {
+  const t = '0–' + P.wave.displayMaxHz + ' Hz';
+  $('specRange').textContent = t; $('spectroRange').textContent = t;
+}
+
+/* ============================================================
+   4. AJUSTES (generados desde SCHEMA)
+   ============================================================ */
+const fid = path => 'p_' + path.replace('.', '_');
+const fmtVal = (f, v) => f.fmt ? f.fmt(v) : (v + (f.unit || ''));
+
+function buildSettings() {
+  const root = $('settingsFields'); root.innerHTML = '';
+  SCHEMA.forEach(sec => {
+    const t = document.createElement('div'); t.className = 'sec-title'; t.textContent = sec.title; root.appendChild(t);
+    sec.fields.forEach(f => {
+      const id = fid(f.path), card = document.createElement('div'); card.className = 'setting-card';
+      if (f.type === 'check') {
+        card.innerHTML = `<div class="check"><span>${f.label}</span><input type="checkbox" id="${id}"></div>`;
+      } else if (f.type === 'range') {
+        card.innerHTML = `<label>${f.label}<span class="val" id="${id}_v"></span></label>
+          <input type="range" id="${id}" min="${f.min}" max="${f.max}" step="${f.step}">`;
+      } else {
+        card.innerHTML = `<label>${f.label}</label><select id="${id}">` +
+          f.options.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('') + `</select>`;
+      }
+      if (f.hint) card.insertAdjacentHTML('beforeend', `<div class="hint">${f.hint}</div>`);
+      root.appendChild(card);
+      const inp = $(id);
+      inp.addEventListener(f.type === 'range' ? 'input' : 'change', () => {
+        let v = f.type === 'check' ? inp.checked : f.type === 'range' ? parseFloat(inp.value) : (f.num ? Number(inp.value) : inp.value);
+        setP(f.path, v); onParam(f.path);
+      });
+    });
+  });
+}
+function syncSettings() {
+  SCHEMA.forEach(sec => sec.fields.forEach(f => {
+    const inp = $(fid(f.path)), v = getP(f.path);
+    if (f.type === 'check') inp.checked = v; else inp.value = v;
+    if (f.type === 'range') $(fid(f.path) + '_v').textContent = fmtVal(f, v);
+  }));
+}
+function matchProfile() {
+  for (const k in PROFILES) if (PROFILES[k].f0Min === P.voice.f0Min && PROFILES[k].f0Max === P.voice.f0Max) return k;
+  return 'custom';
+}
+function onParam(path) {
+  if (path === 'voice.profile') {
+    const pr = PROFILES[P.voice.profile];
+    if (pr) { P.voice.f0Min = pr.f0Min; P.voice.f0Max = pr.f0Max; }
+  }
+  if (path === 'voice.f0Min' && P.voice.f0Min > P.voice.f0Max - 20) P.voice.f0Max = P.voice.f0Min + 20;
+  if (path === 'voice.f0Max' && P.voice.f0Max < P.voice.f0Min + 20) P.voice.f0Min = P.voice.f0Max - 20;
+  if (path === 'voice.f0Min' || path === 'voice.f0Max') P.voice.profile = matchProfile();
+  if (path.startsWith('band.')) applyBand();
+  if (path === 'voice.language' && state.recognition) state.recognition.lang = P.voice.language;
+  if (path === 'audio.fftSize' || path === 'audio.smoothing') applyAnalyser();
+  if (path === 'wave.displayMaxHz') updateLabels();
+  if (path === 'text.labelSpeaker') renderTranscript();
+  syncSettings(); saveParams();
+  if (!A) { drawTravel(); drawSpectrum(); }
+}
+$('btnResetParams').addEventListener('click', () => {
+  P = clone(DEFAULTS); syncSettings(); applyBand(); applyAnalyser(); updateLabels(); saveParams();
+  if (state.recognition) state.recognition.lang = P.voice.language;
+  renderTranscript(); toast('↺ Parámetros restaurados', 'ok');
+});
+$('btnCopyParams').addEventListener('click', () => {
+  navigator.clipboard.writeText(JSON.stringify(P, null, 2))
+    .then(() => toast('✅ Parámetros copiados', 'ok'))
+    .catch(() => toast('❌ No se pudo copiar', 'error'));
+});
+
+/* ============================================================
+   5. DIAGNÓSTICO
+   ============================================================ */
+async function runDiagnostics() {
+  const protocol = location.protocol, isFile = protocol === 'file:';
+  const isSecure = window.isSecureContext || protocol === 'https:' ||
+    (protocol === 'http:' && ['localhost','127.0.0.1'].includes(location.hostname));
+  const set = (id, txt, cls) => { const e = $(id); e.textContent = txt; e.className = cls; };
+  set('diagProtocol', protocol.replace(':',''), isFile ? 'warn' : 'ok');
+  set('diagSpeech', SR_API ? 'soportado' : 'no', SR_API ? 'ok' : 'err');
+  const gum = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  set('diagGUM', gum ? 'sí' : 'no', gum ? 'ok' : 'err');
+  set('diagSecure', isSecure ? 'sí' : 'no', isSecure ? 'ok' : 'err');
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      const s = await navigator.permissions.query({ name: 'microphone' });
+      const map = { granted:['concedido','ok'], denied:['denegado','err'], prompt:['pendiente','warn'] };
+      const [t,c] = map[s.state] || ['?','warn']; set('diagPerm', t, c); s.onchange = runDiagnostics;
+    } else set('diagPerm', 'n/d', 'warn');
+  } catch (e) { set('diagPerm', 'n/d', 'warn'); }
+  updateDiag();
+  return { isFile, isSecure };
+}
+function updateDiag() {
+  $('diagRate').textContent = A ? A.ctx.sampleRate + ' Hz' : '—';
+  $('diagDrop').textContent = R.dropped;
+}
+
+/* ============================================================
+   6. CADENA DE AUDIO  (fuente → banda de voz → analizador)
+   ============================================================ */
+function buildGraph(sourceNode) {
+  const ctx = A.ctx;
+  A.input = ctx.createGain();
+  A.rawAn = ctx.createAnalyser();          // espectro sin filtrar (mide proporción vocal)
+  A.an = ctx.createAnalyser();             // espectro/onda ya filtrados
+  const mk = type => { const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = 0.707; return f; };
+  A.hp = [mk('highpass'), mk('highpass')]; // 2 etapas = pendiente más fuerte
+  A.lp = [mk('lowpass'),  mk('lowpass')];
+  sourceNode.connect(A.input);
+  A.input.connect(A.rawAn);
+  A.input.connect(A.hp[0]); A.hp[0].connect(A.hp[1]); A.hp[1].connect(A.lp[0]);
+  A.lp[0].connect(A.lp[1]); A.lp[1].connect(A.an);
+  A.mute = ctx.createGain(); A.mute.gain.value = 0;   // silencioso: garantiza que el navegador procese el audio
+  A.an.connect(A.mute); A.mute.connect(ctx.destination);
+  applyBand(); applyAnalyser();
+}
+function applyBand() {
+  if (!A) return;
+  A.hp.forEach(f => f.frequency.value = P.band.highpassHz);
+  A.lp.forEach(f => f.frequency.value = P.band.lowpassHz);
+}
+function applyAnalyser() {
+  if (!A) return;
+  [A.an, A.rawAn].forEach(a => { a.fftSize = P.audio.fftSize; a.smoothingTimeConstant = P.audio.smoothing; });
+  freqData = new Uint8Array(A.an.frequencyBinCount);
+  timeF = new Float32Array(A.an.fftSize);
+  rawF = new Float32Array(A.rawAn.frequencyBinCount);
+}
+function newAudio() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  A = { ctx };
+  return ctx;
+}
+function closeAudio() {
+  if (!A) return;
+  try { if (A.synth) A.synth.osc.stop(); } catch (e) {}
+  try { A.ctx.close(); } catch (e) {}
+  A = null;
+}
+
+/* Voz sintética (modo simulación): silenciosa, solo alimenta el análisis */
+function buildSynth() {
+  const ctx = A.ctx;
+  const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 120;
+  const sum = ctx.createGain(); sum.gain.value = 1.6;
+  const env = ctx.createGain(); env.gain.value = 0;
+  const fs = [700, 1200, 2600].map((hz, i) => {
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hz; f.Q.value = [6,8,10][i];
+    osc.connect(f); f.connect(sum); return f;
+  });
+  sum.connect(env); osc.start();
+  A.synth = { osc, env, f1: fs[0], f2: fs[1] };
+  return env;
+}
+function synthSpeak(pitch, dur) {
+  const { osc, env, f1, f2 } = A.synth, t0 = A.ctx.currentTime + 0.05, syl = 0.19;
+  env.gain.cancelScheduledValues(t0); env.gain.setValueAtTime(0, t0);
+  let t = t0;
+  while (t < t0 + dur) {
+    const v = VOWELS[(Math.random() * VOWELS.length) | 0];
+    f1.frequency.setTargetAtTime(v[0], t, 0.02); f2.frequency.setTargetAtTime(v[1], t, 0.02);
+    osc.frequency.setTargetAtTime(pitch * (1 + 0.08 * Math.sin(t * 3) + 0.05 * (Math.random() - 0.5)), t, 0.03);
+    env.gain.linearRampToValueAtTime(0.7, t + 0.04);
+    env.gain.linearRampToValueAtTime(0.35, t + syl * 0.7);
+    env.gain.linearRampToValueAtTime(0.05, t + syl);
+    t += syl;
+  }
+  env.gain.linearRampToValueAtTime(0, t + 0.05);
+}
+
+/* ============================================================
+   7. ANÁLISIS DE VOZ
+   ============================================================ */
+/* Proporción de energía dentro de la banda vocal (F0 mín → fin de formantes) */
+function bandRatio() {
+  A.rawAn.getFloatFrequencyData(rawF);
+  const binHz = A.ctx.sampleRate / 2 / rawF.length;
+  const lo = Math.max(1, Math.floor(P.voice.f0Min * 0.9 / binHz));
+  const hi = Math.floor(P.band.formantHighHz / binHz);
+  const t0 = Math.max(1, Math.floor(20 / binHz));
+  let band = 0, tot = 0;
+  for (let i = t0; i < rawF.length; i++) {
+    const d = rawF[i]; if (!(d > -120)) continue;
+    const pw = Math.pow(10, d / 10); tot += pw; if (i >= lo && i <= hi) band += pw;
+  }
+  return tot > 0 ? band / tot : 0;
+}
+
+/* Autocorrelación restringida al rango F0 del perfil */
+function detectPitch(buf, sr) {
+  const minLag = Math.floor(sr / (P.voice.f0Max * 1.1));
+  const maxLag = Math.min(corrBuf.length - 2, Math.ceil(sr / (P.voice.f0Min * 0.9)));
+  const W = Math.min(1400, buf.length - maxLag - 1);
+  if (W < 300 || minLag < 2) return 0;
+  const o = buf.length - W - maxLag - 1;
+  let e0 = 0; for (let i = 0; i < W; i++) e0 += buf[o+i] * buf[o+i];
+  if (e0 < 1e-6) return 0;
+  let best = 0;
+  for (let lag = minLag - 1; lag <= maxLag + 1; lag++) {
+    let s = 0; for (let i = 0; i < W; i++) s += buf[o+i] * buf[o+i+lag];
+    corrBuf[lag] = s; if (lag >= minLag && lag <= maxLag && s > best) best = s;
+  }
+  if (best / e0 < P.detect.pitchClarity) return 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {   // primer pico fuerte = evita errores de octava
+    const c = corrBuf[lag];
+    if (c >= 0.9 * best && c >= corrBuf[lag-1] && c >= corrBuf[lag+1]) return sr / lag;
+  }
+  return 0;
+}
+function medianPitch(ms) {
+  const t = Date.now() - ms, a = R.pitchLog.filter(e => e.t > t).map(e => e.p).sort((x,y) => x - y);
+  return a.length ? a[a.length >> 1] : 0;
+}
+function classifyVoice(pitch) {
+  if (!pitch || pitch < 60) return { label:'sin tono', cls:'notone', color:'#8b9ac4' };
+  if (pitch < 100) return { label:'muy grave', cls:'muy-grave', color:'#0e6b78' };
+  if (pitch < 155) return { label:'grave',     cls:'grave',     color:'#3ce7ff' };
+  if (pitch < 220) return { label:'medio',     cls:'medio',     color:'#3cffb0' };
+  if (pitch < 300) return { label:'agudo',     cls:'agudo',     color:'#ff8cc8' };
+  return { label:'muy agudo', cls:'muy-agudo', color:'#ff5c7a' };
+}
+
+function loop() {
+  if (!A) return;
+  state.frame++;
+  const now = Date.now(), D = P.detect;
+  A.an.getByteFrequencyData(freqData);
+  A.an.getFloatTimeDomainData(timeF);
+
+  let sum = 0, peak = 0;
+  for (let i = 0; i < timeF.length; i++) { const v = timeF[i], a = v < 0 ? -v : v; sum += v*v; if (a > peak) peak = a; }
+  R.rms = Math.sqrt(sum / timeF.length); R.peak = peak;
+  if (state.frame % 2 === 0) R.ratio = bandRatio();
+
+  const voiceLike = R.rms > D.vadThreshold && R.ratio >= D.voiceBandRatio;
+  if (state.frame % PITCH_EVERY === 0) {
+    const p = voiceLike ? detectPitch(timeF, A.ctx.sampleRate) : 0;
+    R.pitch = p;
+    if (p > 0) {
+      R.pitchSm = R.pitchSm > 0 ? R.pitchSm * 0.6 + p * 0.4 : p; R.noPitch = 0;
+      R.pitchLog.push({ t: now, p }); if (R.pitchLog.length > 200) R.pitchLog.shift();
+    } else if (++R.noPitch > 8) R.pitchSm = 0;
+    if (voiceLike && (p > 0 || !D.requirePitch)) R.lastVoiceTs = now;
+  } else if (voiceLike && !D.requirePitch) R.lastVoiceTs = now;
+  R.voiceActive = now - R.lastVoiceTs < D.hangoverMs;
+
+  pushWaveColumn();
+  drawTravel(); drawSpectrum(); drawSpectrogram();
+  if (state.frame % 6 === 0) updateLive();
+  state.rafId = requestAnimationFrame(loop);
+}
+function startLoop() { if (state.rafId) cancelAnimationFrame(state.rafId); state.rafId = requestAnimationFrame(loop); }
+
+function updateLive() {
+  const vc = R.pitchSm > 0 ? classifyVoice(R.pitchSm) : null;
+  $('bigPitch').textContent = vc ? Math.round(R.pitchSm) : '—';
+  const pc = $('pitchClass');
+  pc.textContent = vc ? vc.label : 'silencio'; pc.style.color = vc ? vc.color : 'var(--muted)';
+  $('rmsLevel').textContent = (R.rms * 100).toFixed(1) + '%';
+  $('bandLevel').textContent = Math.round(R.ratio * 100) + '%';
+  const v = $('voiceLevel');
+  if (R.rms > 0.15) { v.textContent = 'Fuerte'; v.style.color = 'var(--green)'; }
+  else if (R.rms > 0.05) { v.textContent = 'Normal'; v.style.color = 'var(--cyan)'; }
+  else if (R.rms > 0.01) { v.textContent = 'Débil'; v.style.color = 'var(--amber)'; }
+  else { v.textContent = 'Silencio'; v.style.color = 'var(--muted)'; }
+  const chip = $('voiceChip');
+  if (R.voiceActive) { chip.className = 'chip on'; chip.lastChild.textContent = 'Voz humana detectada'; }
+  else if (R.rms > P.detect.vadThreshold) { chip.className = 'chip warn'; chip.lastChild.textContent = 'Sonido fuera de la banda vocal'; }
+  else { chip.className = 'chip'; chip.lastChild.textContent = 'Sin voz'; }
+}
+
+/* ============================================================
+   8. ONDAS VIAJERAS Y ESPECTROS
+   ============================================================ */
+function pushWaveColumn() {
+  R.ampSm = Math.max(R.peak, R.ampSm * 0.82);
+  const amp = Math.min(1, R.ampSm * P.wave.gain);
+  const f = R.pitchSm > 0 ? R.pitchSm : 150;
+  const lambda = clamp(P.wave.wavelength * 150 / f, 10, 110);   // tono agudo → onda más corta
+  R.phase += 2 * Math.PI * P.wave.speed / lambda;
+  const vc = R.voiceActive && R.pitchSm > 0 ? classifyVoice(R.pitchSm) : null;
+  R.hist.push({ amp, ph: R.phase, color: vc ? vc.color : (R.voiceActive ? '#3cffb0' : '#5a6a92') });
+  if (R.hist.length > 3000) R.hist.splice(0, 500);
+  R.waveFrame++;
+}
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h);
+}
+function drawTravel() {
+  const w = waveCanvas.clientWidth, h = waveCanvas.clientHeight; if (!w || !h) return;
+  const c = waveCtx, sp = P.wave.speed, mid = h / 2, ampPx = h * 0.42;
+  c.fillStyle = '#060a12'; c.fillRect(0, 0, w, h);
+
+  const gs = 60, off = (R.waveFrame * sp) % gs;          // rejilla que viaja
+  c.strokeStyle = 'rgba(60,231,255,.06)'; c.lineWidth = 1; c.beginPath();
+  for (let x = w - off; x > -gs; x -= gs) { c.moveTo(x, 0); c.lineTo(x, h); }
+  c.stroke();
+  c.strokeStyle = 'rgba(60,231,255,.15)'; c.beginPath(); c.moveTo(0, mid); c.lineTo(w, mid); c.stroke();
+
+  const n = Math.min(R.hist.length, Math.ceil(w / sp) + 2);
+  if (!A || n < 2) {
+    c.fillStyle = '#8b9ac4'; c.font = '12px -apple-system,sans-serif'; c.textAlign = 'center';
+    c.fillText('Inicia el micrófono para ver viajar las ondas', w / 2, mid + 4); c.textAlign = 'left';
+    return;
+  }
+  const base = R.hist.length - n, H = R.hist, X = j => w - (n - 1 - j) * sp;
+
+  c.beginPath();                                          // envolvente
+  for (let j = 0; j < n; j++) { const y = mid - H[base+j].amp * ampPx; j ? c.lineTo(X(j), y) : c.moveTo(X(j), y); }
+  for (let j = n - 1; j >= 0; j--) c.lineTo(X(j), mid + H[base+j].amp * ampPx);
+  c.closePath();
+  const g = c.createLinearGradient(0, 0, w, 0);
+  g.addColorStop(0, 'rgba(60,231,255,0)'); g.addColorStop(1, 'rgba(60,231,255,.22)');
+  c.fillStyle = g; c.fill();
+
+  if (P.wave.carrier) {                                    // onda portadora viajera
+    c.lineWidth = 1.8; c.shadowBlur = 6; let cur = null;
+    for (let j = 0; j < n; j++) {
+      const e = H[base+j], x = X(j), y = mid - e.amp * ampPx * Math.sin(e.ph);
+      if (e.color !== cur) {
+        if (cur !== null) { c.lineTo(x, y); c.stroke(); }
+        c.beginPath(); c.strokeStyle = e.color; c.shadowColor = e.color; c.moveTo(x, y); cur = e.color;
+      } else c.lineTo(x, y);
+    }
+    if (cur !== null) c.stroke();
+    c.shadowBlur = 0;
+  }
+
+  const fade = c.createLinearGradient(0, 0, w * 0.18, 0);  // desvanecer lo antiguo
+  fade.addColorStop(0, '#060a12'); fade.addColorStop(1, 'rgba(6,10,18,0)');
+  c.fillStyle = fade; c.fillRect(0, 0, w * 0.18, h);
+
+  c.font = '600 10px -apple-system,sans-serif'; c.textBaseline = 'middle';
+  if (P.wave.markers) {                                    // frases viajando con la onda
+    R.markers = R.markers.filter(m => w - (R.waveFrame - m.f) * sp > -20);
+    R.markers.forEach(m => {
+      const x = w - (R.waveFrame - m.f) * sp;
+      let label = m.text.length > 34 ? m.text.slice(0, 33) + '…' : m.text;
+      const tw = c.measureText(label).width + 12, y = 26 + (m.id % 2) * 20;
+      c.strokeStyle = m.color; c.globalAlpha = .55; c.setLineDash([3,3]);
+      c.beginPath(); c.moveTo(x, y + 8); c.lineTo(x, h); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+      roundRect(c, x - tw, y, tw, 16, 6); c.fillStyle = 'rgba(10,16,28,.9)'; c.fill();
+      c.strokeStyle = m.color; c.stroke();
+      c.fillStyle = '#dce4ff'; c.fillText(label, x - tw + 6, y + 8.5);
+    });
+  }
+  if (state.interim) {                                     // transcripción en vivo
+    let t = state.interim.length > 52 ? '…' + state.interim.slice(-51) : state.interim;
+    c.font = 'italic 600 11px -apple-system,sans-serif';
+    const tw = c.measureText(t).width + 14;
+    roundRect(c, w - tw - 6, h - 26, tw, 20, 8); c.fillStyle = 'rgba(60,231,255,.14)'; c.fill();
+    c.fillStyle = '#3ce7ff'; c.fillText(t, w - tw + 1, h - 15.5);
+  }
+  const last = H[H.length - 1], ly = mid - last.amp * ampPx * Math.sin(last.ph);   // punto "ahora"
+  c.fillStyle = last.color; c.shadowBlur = 10; c.shadowColor = last.color;
+  c.beginPath(); c.arc(w - 2, ly, 3.5, 0, 6.283); c.fill(); c.shadowBlur = 0;
+}
+
+function drawSpectrum() {
+  const w = specCanvas.clientWidth, h = specCanvas.clientHeight; if (!w || !h) return;
+  const c = specCtx, maxHz = P.wave.displayMaxHz, sr = A ? A.ctx.sampleRate : 48000;
+  const binHz = sr / 2 / freqData.length, X = f => f / maxHz * w;
+  c.fillStyle = '#060a12'; c.fillRect(0, 0, w, h);
+
+  c.fillStyle = 'rgba(60,255,176,.07)';                    // banda de formantes
+  c.fillRect(X(P.band.formantLowHz), 0, X(P.band.formantHighHz) - X(P.band.formantLowHz), h);
+  c.fillStyle = 'rgba(60,231,255,.13)';                    // rango F0 del perfil
+  c.fillRect(X(P.voice.f0Min), 0, X(P.voice.f0Max) - X(P.voice.f0Min), h);
+
+  c.font = '9px -apple-system,sans-serif'; c.fillStyle = '#8b9ac4'; c.textBaseline = 'alphabetic';
+  c.strokeStyle = 'rgba(60,231,255,.07)'; c.lineWidth = 1;
+  const step = maxHz <= 3000 ? 500 : 1000;
+  for (let f = step; f < maxHz; f += step) {
+    c.beginPath(); c.moveTo(X(f), 0); c.lineTo(X(f), h); c.stroke();
+    c.fillText((f / 1000) + 'k', X(f) + 2, h - 3);
+  }
+  c.setLineDash([4,4]); c.strokeStyle = 'rgba(255,200,60,.6)';   // cortes del filtro
+  [P.band.highpassHz, P.band.lowpassHz].forEach(f => {
+    if (f < maxHz) { c.beginPath(); c.moveTo(X(f), 0); c.lineTo(X(f), h); c.stroke(); }
+  });
+  c.setLineDash([]);
+
+  const val = x => { const i = Math.min(freqData.length - 1, Math.floor(x / w * maxHz / binHz)); return h - freqData[i] / 255 * h * 0.9; };
+  c.beginPath(); c.moveTo(0, h);
+  for (let x = 0; x < w; x++) c.lineTo(x, val(x));
+  c.lineTo(w, h); c.closePath();
+  const g = c.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, 'rgba(60,255,176,.5)'); g.addColorStop(1, 'rgba(60,231,255,.1)');
+  c.fillStyle = g; c.fill();
+  c.beginPath();
+  for (let x = 0; x < w; x++) x ? c.lineTo(x, val(x)) : c.moveTo(x, val(x));
+  c.strokeStyle = 'rgba(60,231,255,.95)'; c.lineWidth = 1.4; c.stroke();
+
+  if (A && R.pitchSm > 0 && R.pitchSm < maxHz) {           // marcador F0
+    c.strokeStyle = '#ff8cc8'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(X(R.pitchSm), 0); c.lineTo(X(R.pitchSm), h); c.stroke();
+    c.fillStyle = '#ff8cc8'; c.font = '600 10px -apple-system,sans-serif';
+    c.fillText('F0 ' + Math.round(R.pitchSm) + ' Hz', Math.min(w - 62, X(R.pitchSm) + 4), 22);
+  }
+}
+
+function magToColor(m) {
+  const t = m / 255;
+  if (t < 0.1)  return [6,10,24];
+  if (t < 0.3)  return [20,30,60];
+  if (t < 0.5)  return [40,70,130];
+  if (t < 0.7)  return [90,150,200];
+  if (t < 0.85) return [180,220,120];
+  if (t < 0.95) return [255,200,60];
+  return [255,80,60];
+}
+function drawSpectrogram() {
+  const c = spectroCtx, W = spectroCanvas.width, H = spectroCanvas.height;
+  if (!W || !H || !A || !spectroCanvas.clientWidth) return;
+  const dpr = W / spectroCanvas.clientWidth, sp = Math.max(1, Math.round(P.wave.speed * dpr));
+  const binHz = A.ctx.sampleRate / 2 / freqData.length;
+  c.save(); c.setTransform(1,0,0,1,0,0);
+  c.drawImage(spectroCanvas, -sp, 0);
+  const img = c.createImageData(sp, H);
+  for (let y = 0; y < H; y++) {
+    const idx = Math.min(freqData.length - 1, Math.floor((1 - y / H) * P.wave.displayMaxHz / binHz));
+    const col = magToColor(freqData[idx]);
+    for (let k = 0; k < sp; k++) {
+      const o = (y * sp + k) * 4; img.data[o] = col[0]; img.data[o+1] = col[1]; img.data[o+2] = col[2]; img.data[o+3] = 255;
+    }
+  }
+  c.putImageData(img, W - sp, 0); c.restore();
+}
+
+/* ============================================================
+   9. TEXTO
+   ============================================================ */
+function filterFillers(text) {
+  let out = text;
+  FILLERS.forEach(f => { out = out.replace(new RegExp('(^|\\s)' + f + '(?=\\s|$|[.,!?])', 'gi'), '$1'); });
+  return out.replace(/\s+/g, ' ').trim();
+}
+function autoPunctuate(text) {
+  if (!text) return text;
+  let out = text.trim(); out = out.charAt(0).toUpperCase() + out.slice(1);
+  return /[.!?]$/.test(out) ? out : out + '.';
+}
+const escapeHtml = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+
+function commitPhrase(raw, confidence) {
+  let text = (raw || '').trim();
+  if (P.text.filterFillers) text = filterFillers(text);
+  if (P.text.autoPunctuation) text = autoPunctuate(text);
+  if (text.length < 2 || confidence < P.text.minConfidence) return;
+  const voice = P.text.labelSpeaker ? classifyVoice(medianPitch(4000)) : null;
+  state.transcript.push({ text, confidence, ts: Date.now(), voiceClass: voice });
+  R.markers.push({ f: R.waveFrame, text, color: voice ? voice.color : '#3ce7ff', id: R.markerId++ });
+  renderTranscript();
+}
+
+function renderTranscript() {
+  const el = $('transcript');
+  if (!state.transcript.length) {
+    el.innerHTML = `<div class="empty">Pulsa <b>Iniciar micrófono</b> o <b>Simulación</b>.<br>El texto aparecerá aquí con etiqueta de voz.</div>`;
+  } else {
+    el.innerHTML = state.transcript.map(p => {
+      const time = new Date(p.ts).toLocaleTimeString('es', { hour12: false });
+      const show = P.text.labelSpeaker && p.voiceClass;
+      return `<div class="phrase ${show ? p.voiceClass.cls : ''}">
+        <div class="meta"><span>${time}</span><span>${show ? `<span class="voice ${p.voiceClass.cls}">${p.voiceClass.label}</span>` : ''}</span></div>
+        <div class="text">${escapeHtml(p.text)}</div>
+        <div class="conf">confianza ${Math.round(p.confidence * 100)}%</div></div>`;
+    }).join('');
+    el.scrollTop = el.scrollHeight;
+  }
+  $('interim').textContent = state.interim || '';
+  updateStats();
+}
+function updateStats() {
+  const all = state.transcript.map(p => p.text).join(' ').trim();
+  $('statWords').textContent = all ? all.split(/\s+/).length : 0;
+  $('statPhrases').textContent = state.transcript.length;
+  $('statConf').textContent = state.transcript.length
+    ? Math.round(state.transcript.reduce((s,p) => s + p.confidence, 0) / state.transcript.length * 100) + '%' : '—';
+}
+
+function handleResult(ev) {
+  const gateOpen = !P.detect.gateTranscript || (Date.now() - R.lastVoiceTs) < P.detect.gateWindowMs;
+  let interim = '';
+  for (let i = ev.resultIndex; i < ev.results.length; i++) {
+    const r = ev.results[i], alt = r[0];
+    if (r.isFinal) {
+      if (!gateOpen) { R.dropped++; updateDiag(); continue; }   // ruido / no es voz humana
+      commitPhrase(alt.transcript, alt.confidence || 0.7);
+    } else interim += alt.transcript || '';
+  }
+  state.interim = gateOpen ? interim : '';
+  renderTranscript();
+}
+function handleError(ev) {
+  const err = ev.error;
+  if (err === 'no-speech' || err === 'aborted') return;
+  if (err === 'not-allowed' || err === 'service-not-allowed') {
+    toast('🔇 Micrófono bloqueado', 'warn', 3500); stopListening(true);
+    setTimeout(() => { if (confirm('Micrófono bloqueado.\n¿Activar modo simulación?')) startSimulation(); }, 400); return;
+  }
+  if (err === 'audio-capture') { toast('🎤 Sin micrófono. Usa simulación', 'error', 4000); stopListening(true); return; }
+  if (err === 'network') { toast('⚠️ Error de red. Usa simulación', 'error', 4000); stopListening(true); return; }
+  toast('⚠️ ' + err, 'error', 3500);
+}
+
+/* ============================================================
+   10. ESCUCHA
+   ============================================================ */
+function resetRuntime() {
+  R.pitch = R.pitchSm = R.noPitch = R.ampSm = R.ratio = 0; R.lastVoiceTs = 0; R.voiceActive = false;
+  R.pitchLog = []; R.hist = []; R.markers = []; R.waveFrame = 0;
+}
+async function startListening() {
+  if (location.protocol === 'file:') { $('modal').classList.add('show'); return; }
+  if (!window.isSecureContext) { toast('⚠️ Necesitas HTTPS o localhost', 'error', 4000); return; }
+  stopListening(true); resetRuntime();
+  try {
+    headerStatus('Solicitando micrófono…');
+    try {
+      state.stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: P.audio.echoCancellation, noiseSuppression: P.audio.noiseSuppression,
+        autoGainControl: P.audio.autoGainControl, channelCount: 1 } });
+    } catch (micErr) {
+      if (micErr.name === 'NotAllowedError' || micErr.name === 'PermissionDeniedError') {
+        toast('🔇 Permiso denegado', 'warn', 3500);
+        setTimeout(() => { if (confirm('Permiso denegado.\n¿Activar simulación?')) startSimulation(); }, 400);
+        return;
+      }
+      throw micErr;
+    }
+    const ctx = newAudio(); if (ctx.state === 'suspended') await ctx.resume();
+    buildGraph(ctx.createMediaStreamSource(state.stream));
+    state.userStopped = false; state.mode = 'mic';
+
+    if (SR_API) {
+      const rec = state.recognition = new SR_API();
+      rec.lang = P.voice.language; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.onstart = () => { state.isListening = true; headerStatus('● Escuchando…', 'active'); toast('✅ Micrófono activo', 'ok'); updateButtons(); runDiagnostics(); };
+      rec.onresult = handleResult; rec.onerror = handleError;
+      rec.onend = () => {
+        if (state.isListening && !state.userStopped) { try { rec.start(); } catch (e) {} }
+        else { state.isListening = false; headerStatus('Detenido'); updateButtons(); }
+      };
+      rec.start();
+    } else {
+      state.isListening = true; headerStatus('● Analizando (sin transcripción)', 'active');
+      toast('⚠️ Sin Speech API: solo ondas y espectro. Usa Chrome/Edge', 'warn', 5000); updateButtons();
+    }
+    startLoop();
+  } catch (err) {
+    toast('❌ ' + (err.message || err), 'error', 4000); stopListening(true);
+  }
+}
+function stopListening(silent) {
+  state.userStopped = true; state.isListening = false; state.mode = 'idle';
+  if (state.recognition) { try { state.recognition.stop(); } catch (e) {} state.recognition = null; }
+  if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = null; }
+  state.simTimers.forEach(clearTimeout); state.simTimers = [];
+  if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
+  closeAudio();
+  state.interim = ''; $('interim').textContent = '';
+  if (!silent) headerStatus('Detenido');
+  updateButtons(); updateLive(); updateDiag();
+}
+
+/* ============================================================
+   11. SIMULACIÓN (voz sintética silenciosa → mismo análisis real)
+   ============================================================ */
+async function startSimulation() {
+  stopListening(true); resetRuntime();
+  $('modal').classList.remove('show');
+  state.mode = 'sim'; state.simIndex = 0; state.userStopped = false;
+  headerStatus('● Simulando conversación', 'sim'); toast('🧪 Simulación activa', 'ok');
+  const ctx = newAudio(); try { if (ctx.state === 'suspended') await ctx.resume(); } catch (e) {}
+  buildGraph(buildSynth());
+  updateButtons(); startLoop(); updateDiag();
+
+  const later = (fn, ms) => state.simTimers.push(setTimeout(fn, ms));
+  const next = () => {
+    if (state.mode !== 'sim') return;
+    const ph = SIM_PHRASES[state.simIndex++];
+    if (!ph) { toast('✅ Simulación completada', 'ok'); stopListening(true); headerStatus('Simulación terminada'); return; }
+    const words = ph.text.split(' '), dur = Math.max(1.6, words.length * 0.38);
+    synthSpeak(ph.pitch, dur);
+    words.forEach((_, i) => later(() => { state.interim = words.slice(0, i + 1).join(' '); renderTranscript(); }, (i + 0.6) / words.length * dur * 900));
+    later(() => { state.interim = ''; commitPhrase(ph.text, 0.85 + Math.random() * 0.13); }, dur * 1000 + 250);
+    later(next, dur * 1000 + 1400);
+  };
+  next();
+}
+
+/* ============================================================
+   12. BOTONES Y ACCIONES
+   ============================================================ */
+function updateButtons() {
+  const active = state.isListening || state.mode === 'sim';
+  const btn = $('btnStart');
+  if (active) {
+    btn.className = 'btn-big rec'; btn.innerHTML = '<span class="dot"></span><span>Detener</span>';
+    btn.onclick = () => stopListening(false);
+  } else {
+    btn.className = 'btn-big primary'; btn.innerHTML = '<span style="font-size:1.3rem">🎤</span><span>Iniciar micrófono</span>';
+    btn.onclick = startListening;
+  }
+  btn.disabled = false; $('btnSim').disabled = state.isListening;
+}
+$('btnSim').addEventListener('click', startSimulation);
+$('btnClear').addEventListener('click', () => { state.transcript = []; state.interim = ''; R.markers = []; renderTranscript(); toast('🗑 Texto borrado', 'ok'); });
+$('btnCopy').addEventListener('click', () => {
+  const text = state.transcript.map(p => p.text).join(' ');
+  if (!text) { toast('No hay texto', 'error'); return; }
+  navigator.clipboard.writeText(text).then(() => toast('✅ Copiado', 'ok')).catch(() => toast('❌ No se pudo copiar', 'error'));
+});
+function download(content, filename, mime) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime + ';charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+}
+$('btnTxt').addEventListener('click', () => {
+  if (!state.transcript.length) { toast('No hay texto', 'error'); return; }
+  download(state.transcript.map(p => `[${new Date(p.ts).toLocaleString('es')}] ${p.voiceClass ? '[' + p.voiceClass.label + '] ' : ''}${p.text}`).join('\n') + '\n', `transcripcion_${Date.now()}.txt`, 'text/plain');
+  toast('✅ TXT descargado', 'ok');
+});
+$('btnCsv').addEventListener('click', () => {
+  if (!state.transcript.length) { toast('No hay texto', 'error'); return; }
+  let csv = 'timestamp,voice_class,text,confidence,language\n';
+  state.transcript.forEach(p => {
+    csv += `${new Date(p.ts).toISOString()},${p.voiceClass ? p.voiceClass.label : ''},"${p.text.replace(/"/g, '""')}",${p.confidence.toFixed(3)},${P.voice.language}\n`;
+  });
+  download(csv, `transcripcion_${Date.now()}.csv`, 'text/csv'); toast('✅ CSV descargado', 'ok');
+});
+$('modalSim').addEventListener('click', startSimulation);
+$('modalClose').addEventListener('click', () => $('modal').classList.remove('show'));
+
+/* ============================================================
+   13. INICIO
+   ============================================================ */
+buildSettings(); syncSettings(); updateLabels();
+window.addEventListener('load', async () => {
+  resizeAll(); renderTranscript(); updateButtons();
+  setTimeout(resizeAll, 200);
+  const diag = await runDiagnostics();
+  if (diag.isFile) { setTimeout(() => $('modal').classList.add('show'), 400); headerStatus('file:// — usa simulación', 'sim'); }
+  else if (!SR_API) { headerStatus('Sin Speech API: solo análisis', ''); toast('⚠️ Usa Chrome/Edge para transcribir', 'warn', 5000); }
+  else if (!diag.isSecure) { headerStatus('Necesitas HTTPS o localhost', ''); toast('⚠️ HTTPS requerido', 'warn', 5000); }
+  else headerStatus('Listo para empezar');
+});
+let lastTouch = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now(); if (now - lastTouch < 300) e.preventDefault(); lastTouch = now;
+}, { passive: false });
+
+</script>
+
+</body>
+</html>
