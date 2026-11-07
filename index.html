@@ -113,7 +113,12 @@ header .status-dot.sim{background:var(--amber);
 .btn-big:disabled{opacity:.4;cursor:not-allowed;animation:none}
 
 /* ============ VISTA ONDA ============ */
-.wave-container{display:flex;flex-direction:column;gap:10px;height:100%}
+.tab-panel#panel-wave.active{display:flex;flex-direction:column;gap:8px}.wave-container{display:flex;flex-direction:column;gap:8px;flex:1;height:auto;min-height:0}
+.wave-controls{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.axis-control{display:grid;grid-template-columns:auto minmax(56px,1fr) 38px;align-items:center;gap:7px;font-size:.66rem;color:var(--muted);font-weight:700}
+.axis-control input{width:100%;min-width:0;margin:0;accent-color:var(--cyan);touch-action:pan-x}
+.axis-control output{text-align:right;color:var(--cyan);font:700 .68rem "SF Mono",Consolas,monospace}
+@media(max-width:420px){.wave-controls{grid-template-columns:1fr;gap:5px;padding:7px 9px}.axis-control{grid-template-columns:108px minmax(56px,1fr) 36px}}
 .wave-box{background:#060a12;border:1px solid var(--line);border-radius:12px;
   position:relative;overflow:hidden;flex:1;min-height:80px}
 .wave-box canvas{display:block;width:100%;height:100%}
@@ -164,6 +169,9 @@ header .status-dot.sim{background:var(--amber);
   border-radius:10px;padding:8px 10px;font-size:.85rem;color:var(--cyan);
   font-style:italic;min-height:36px;flex-shrink:0}
 #interim:empty{display:none}
+.manual-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;flex-shrink:0}
+.manual-entry textarea{resize:vertical;min-height:42px;max-height:90px;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:10px;padding:9px;color:var(--txt);font:inherit;font-size:.78rem;line-height:1.4}
+.manual-entry button{padding:8px 12px;border-radius:10px;background:rgba(60,231,255,.12);border:1px solid rgba(60,231,255,.35);color:var(--cyan);font-size:.72rem;font-weight:700;touch-action:manipulation}
 
 .text-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
   flex-shrink:0}
@@ -364,6 +372,18 @@ header .status-dot.sim{background:var(--amber);
 
     <!-- ========== TAB ONDA ========== -->
     <div class="tab-panel" id="panel-wave">
+      <div class="wave-controls" aria-label="Ajustes de escala de las ondas">
+        <label class="axis-control" for="axisZoomX">
+          <span>Zoom X · tiempo</span>
+          <input id="axisZoomX" type="range" min="0.5" max="4" step="0.1" value="1" aria-label="Ampliar escala horizontal X">
+          <output id="axisZoomXValue">1.0×</output>
+        </label>
+        <label class="axis-control" for="axisZoomY">
+          <span>Zoom Y · amplitud</span>
+          <input id="axisZoomY" type="range" min="0.5" max="4" step="0.1" value="1" aria-label="Ampliar escala vertical Y">
+          <output id="axisZoomYValue">1.0×</output>
+        </label>
+      </div>
       <div class="wave-container">
         <div class="wave-box" style="flex:1.7">
           <canvas id="waveCanvas"></canvas>
@@ -408,6 +428,10 @@ header .status-dot.sim{background:var(--amber);
         </div>
 
         <div id="interim"></div>
+        <div class="manual-entry" aria-label="Entrada manual de respaldo">
+          <textarea id="manualText" rows="2" placeholder="Si Chrome no transcribe, escribe o pega el texto aquí…"></textarea>
+          <button id="btnAddManual" type="button">Añadir texto</button>
+        </div>
 
         <div class="text-actions">
           <button id="btnCopy">
@@ -501,15 +525,15 @@ const PROFILES = {
 };
 
 const DEFAULTS = {
-  voice:  { profile: 'male', f0Min: 85, f0Max: 180, language: 'es-ES' },
+  voice:  { profile: 'generic', f0Min: 80, f0Max: 400, language: 'es-CO' },
   band:   { highpassHz: 80, lowpassHz: 3400, formantLowHz: 300, formantHighHz: 3400 },
-  detect: { vadThreshold: 0.02, voiceBandRatio: 0.6, hangoverMs: 600,
-            pitchClarity: 0.35, requirePitch: true,
-            gateTranscript: true, gateWindowMs: 3000 },
+  detect: { vadThreshold: 0.012, voiceBandRatio: 0.25, hangoverMs: 800,
+            pitchClarity: 0.25, requirePitch: false,
+            gateTranscript: false, gateWindowMs: 3000 },
   audio:  { echoCancellation: true, noiseSuppression: true, autoGainControl: true,
             fftSize: 2048, smoothing: 0.5 },
   wave:   { speed: 2, gain: 2.5, wavelength: 36, carrier: true,
-            markers: true, displayMaxHz: 4000 },
+            markers: true, displayMaxHz: 4000, zoomX: 1, zoomY: 1 },
   text:   { minConfidence: 0.5, autoPunctuation: true, filterFillers: true, labelSpeaker: true }
 };
 
@@ -567,7 +591,7 @@ const SCHEMA = [
   ]}
 ];
 
-const STORE_KEY = 'voces.params.v2';
+const STORE_KEY = 'voces.params.v3';
 const PITCH_EVERY = 2;       // calcular F0 cada N frames
 const FILLERS = ['eh','em','mmm','mm','ah','uh','este','pues','bueno','o sea','digamos'];
 const VOWELS = [[730,1090],[270,2290],[300,870],[530,1840],[570,840]];
@@ -960,7 +984,7 @@ function roundRect(c, x, y, w, h, r) {
 }
 function drawTravel() {
   const w = waveCanvas.clientWidth, h = waveCanvas.clientHeight; if (!w || !h) return;
-  const c = waveCtx, sp = P.wave.speed, mid = h / 2, ampPx = h * 0.42;
+  const c = waveCtx, sp = P.wave.speed, mid = h / 2, ampPx = h * 0.42 * P.wave.zoomY;
   c.fillStyle = '#060a12'; c.fillRect(0, 0, w, h);
 
   const gs = 60, off = (R.waveFrame * sp) % gs;          // rejilla que viaja
@@ -969,13 +993,15 @@ function drawTravel() {
   c.stroke();
   c.strokeStyle = 'rgba(60,231,255,.15)'; c.beginPath(); c.moveTo(0, mid); c.lineTo(w, mid); c.stroke();
 
-  const n = Math.min(R.hist.length, Math.ceil(w / sp) + 2);
+  const xStep = sp * P.wave.zoomX;
+  const yScale = P.wave.zoomY;
+  const n = Math.min(R.hist.length, Math.ceil(w / xStep) + 2);
   if (!A || n < 2) {
     c.fillStyle = '#8b9ac4'; c.font = '12px -apple-system,sans-serif'; c.textAlign = 'center';
     c.fillText('Inicia el micrófono para ver viajar las ondas', w / 2, mid + 4); c.textAlign = 'left';
     return;
   }
-  const base = R.hist.length - n, H = R.hist, X = j => w - (n - 1 - j) * sp;
+  const base = R.hist.length - n, H = R.hist, X = j => w - (n - 1 - j) * xStep;
 
   c.beginPath();                                          // envolvente
   for (let j = 0; j < n; j++) { const y = mid - H[base+j].amp * ampPx; j ? c.lineTo(X(j), y) : c.moveTo(X(j), y); }
@@ -1004,9 +1030,9 @@ function drawTravel() {
 
   c.font = '600 10px -apple-system,sans-serif'; c.textBaseline = 'middle';
   if (P.wave.markers) {                                    // frases viajando con la onda
-    R.markers = R.markers.filter(m => w - (R.waveFrame - m.f) * sp > -20);
+    R.markers = R.markers.filter(m => w - (R.waveFrame - m.f) * sp * P.wave.zoomX > -20);
     R.markers.forEach(m => {
-      const x = w - (R.waveFrame - m.f) * sp;
+      const x = w - (R.waveFrame - m.f) * sp * P.wave.zoomX;
       let label = m.text.length > 34 ? m.text.slice(0, 33) + '…' : m.text;
       const tw = c.measureText(label).width + 12, y = 26 + (m.id % 2) * 20;
       c.strokeStyle = m.color; c.globalAlpha = .55; c.setLineDash([3,3]);
@@ -1084,7 +1110,7 @@ function magToColor(m) {
 function drawSpectrogram() {
   const c = spectroCtx, W = spectroCanvas.width, H = spectroCanvas.height;
   if (!W || !H || !A || !spectroCanvas.clientWidth) return;
-  const dpr = W / spectroCanvas.clientWidth, sp = Math.max(1, Math.round(P.wave.speed * dpr));
+  const dpr = W / spectroCanvas.clientWidth, sp = Math.max(1, Math.round(P.wave.speed * P.wave.zoomX * dpr));
   const binHz = A.ctx.sampleRate / 2 / freqData.length;
   c.save(); c.setTransform(1,0,0,1,0,0);
   c.drawImage(spectroCanvas, -sp, 0);
@@ -1164,16 +1190,24 @@ function handleResult(ev) {
   state.interim = gateOpen ? interim : '';
   renderTranscript();
 }
+function speechUnavailable(message) {
+  const rec = state.recognition;
+  state.recognition = null;
+  state.interim = '';
+  if (rec) { try { rec.stop(); } catch (e) {} }
+  headerStatus('Micrófono activo · transcripción no disponible', 'active');
+  toast(message, 'warn', 6000);
+  renderTranscript(); updateButtons();
+}
 function handleError(ev) {
   const err = ev.error;
   if (err === 'no-speech' || err === 'aborted') return;
   if (err === 'not-allowed' || err === 'service-not-allowed') {
-    toast('🔇 Micrófono bloqueado', 'warn', 3500); stopListening(true);
-    setTimeout(() => { if (confirm('Micrófono bloqueado.\n¿Activar modo simulación?')) startSimulation(); }, 400); return;
+    speechUnavailable('Chrome permitió el micrófono, pero bloqueó el servicio de transcripción. Revisa el permiso de voz de Chrome.'); return;
   }
-  if (err === 'audio-capture') { toast('🎤 Sin micrófono. Usa simulación', 'error', 4000); stopListening(true); return; }
-  if (err === 'network') { toast('⚠️ Error de red. Usa simulación', 'error', 4000); stopListening(true); return; }
-  toast('⚠️ ' + err, 'error', 3500);
+  if (err === 'audio-capture') { speechUnavailable('El servicio de voz no recibe audio. Revisa el micrófono seleccionado en Android.'); return; }
+  if (err === 'network') { speechUnavailable('Sin conexión con el servicio de voz. El medidor sigue activo; vuelve a iniciar cuando tengas internet.'); return; }
+  speechUnavailable('Error de transcripción: ' + err + '. El análisis del micrófono continúa activo.');
 }
 
 /* ============================================================
@@ -1208,11 +1242,13 @@ async function startListening() {
     if (SR_API) {
       const rec = state.recognition = new SR_API();
       rec.lang = P.voice.language; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
-      rec.onstart = () => { state.isListening = true; headerStatus('● Escuchando…', 'active'); toast('✅ Micrófono activo', 'ok'); updateButtons(); runDiagnostics(); };
+      rec.onstart = () => { state.isListening = true; headerStatus('● Escuchando · transcripción activa', 'active'); toast('✅ Micrófono activo', 'ok'); updateButtons(); runDiagnostics(); };
       rec.onresult = handleResult; rec.onerror = handleError;
       rec.onend = () => {
-        if (state.isListening && !state.userStopped) { try { rec.start(); } catch (e) {} }
-        else { state.isListening = false; headerStatus('Detenido'); updateButtons(); }
+        if (state.recognition !== rec) return;
+        if (state.isListening && !state.userStopped) {
+          setTimeout(() => { if (state.recognition === rec && state.isListening && !state.userStopped) { try { rec.start(); } catch (e) { speechUnavailable('No se pudo reiniciar la transcripción. Pulsa Detener y vuelve a iniciar.'); } } }, 450);
+        } else { state.isListening = false; headerStatus('Detenido'); updateButtons(); }
       };
       rec.start();
     } else {
@@ -1278,6 +1314,7 @@ function updateButtons() {
   btn.disabled = false; $('btnSim').disabled = state.isListening;
 }
 $('btnSim').addEventListener('click', startSimulation);
+$('btnAddManual').addEventListener('click', () => { const input = $('manualText'); const value = input.value.trim(); if (!value) { toast('Escribe o pega un texto primero', 'warn'); return; } commitPhrase(value, 1); input.value = ''; toast('✅ Texto agregado', 'ok'); });
 $('btnClear').addEventListener('click', () => { state.transcript = []; state.interim = ''; R.markers = []; renderTranscript(); toast('🗑 Texto borrado', 'ok'); });
 $('btnCopy').addEventListener('click', () => {
   const text = state.transcript.map(p => p.text).join(' ');
@@ -1308,6 +1345,15 @@ $('modalClose').addEventListener('click', () => $('modal').classList.remove('sho
    13. INICIO
    ============================================================ */
 buildSettings(); syncSettings(); updateLabels();
+function syncAxisZoom() {
+  $('axisZoomX').value = P.wave.zoomX;
+  $('axisZoomY').value = P.wave.zoomY;
+  $('axisZoomXValue').textContent = Number(P.wave.zoomX).toFixed(1) + '×';
+  $('axisZoomYValue').textContent = Number(P.wave.zoomY).toFixed(1) + '×';
+}
+$('axisZoomX').addEventListener('input', () => { P.wave.zoomX = Number($('axisZoomX').value); syncAxisZoom(); saveParams(); });
+$('axisZoomY').addEventListener('input', () => { P.wave.zoomY = Number($('axisZoomY').value); syncAxisZoom(); saveParams(); });
+syncAxisZoom();
 window.addEventListener('load', async () => {
   resizeAll(); renderTranscript(); updateButtons();
   setTimeout(resizeAll, 200);
